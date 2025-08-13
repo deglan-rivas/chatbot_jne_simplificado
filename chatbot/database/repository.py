@@ -20,6 +20,64 @@ class RepositorioConversaciones:
         if self.db:
             self.db.close()
     
+    def guardar_conversacion_completa(
+        self,
+        user_id: str,
+        flujo: Dict[str, Any],
+        numero_telefono: Optional[str] = None,
+        usuario: Optional[str] = None,
+        canal: str = "telegram",
+        error: bool = False,
+        mensaje_error: Optional[str] = None,
+        fecha_inicio: Optional[datetime] = None,
+        fecha_fin: Optional[datetime] = None,
+        duracion_total: Optional[int] = None,
+        num_mensajes: Optional[int] = None
+    ) -> Conversacion:
+        """
+        Guarda una conversación completa en la base de datos.
+        
+        Args:
+            user_id: ID del usuario en Telegram
+            flujo: Conversación completa con todos los mensajes y estado
+            numero_telefono: Número de teléfono del usuario (opcional)
+            usuario: Username del usuario (opcional)
+            canal: Canal de comunicación (default: "telegram")
+            error: Indica si hubo error en la conversación
+            mensaje_error: Descripción del error si ocurrió
+            fecha_inicio: Fecha de inicio de la conversación
+            fecha_fin: Fecha de fin de la conversación
+            duracion_total: Duración total en segundos
+            num_mensajes: Número total de mensajes
+        
+        Returns:
+            Conversacion: Objeto de conversación guardado
+        """
+        try:
+            conversacion = Conversacion(
+                user_id=user_id,
+                numero_telefono=numero_telefono,
+                usuario=usuario,
+                flujo=json.dumps(flujo, ensure_ascii=False, default=str),
+                fecha_inicio=fecha_inicio or datetime.now(),
+                fecha_fin=fecha_fin,
+                canal=canal,
+                error=error,
+                mensaje_error=mensaje_error,
+                duracion_total=duracion_total,
+                num_mensajes=num_mensajes
+            )
+            
+            self.db.add(conversacion)
+            self.db.commit()
+            self.db.refresh(conversacion)
+            
+            return conversacion
+            
+        except Exception as e:
+            self.db.rollback()
+            raise Exception(f"Error al guardar conversación completa: {e}")
+    
     def guardar_conversacion(
         self,
         user_id: str,
@@ -35,7 +93,9 @@ class RepositorioConversaciones:
         mensaje_error: Optional[str] = None,
         duracion_procesamiento: Optional[int] = None
     ) -> Conversacion:
-        """Guarda una nueva conversación en la base de datos"""
+        """
+        Guarda una conversación individual (método legacy, mantenido por compatibilidad).
+        """
         try:
             fecha_hora_entrada = datetime.now()
             fecha_hora_salida = datetime.now()
@@ -77,7 +137,7 @@ class RepositorioConversaciones:
             conversaciones = (
                 self.db.query(Conversacion)
                 .filter(Conversacion.user_id == user_id)
-                .order_by(desc(Conversacion.fecha_hora_entrada))
+                .order_by(desc(Conversacion.fecha_inicio))
                 .limit(limite)
                 .all()
             )
@@ -94,19 +154,18 @@ class RepositorioConversaciones:
             # Total de conversaciones
             total = self.db.query(Conversacion).count()
             
-            # Conversaciones por menú principal
-            conversaciones_por_menu = (
-                self.db.query(Conversacion.menu_principal, self.db.func.count(Conversacion.id))
-                .filter(Conversacion.menu_principal.isnot(None))
-                .group_by(Conversacion.menu_principal)
-                .all()
+            # Conversaciones por duración
+            conversaciones_cortas = (
+                self.db.query(Conversacion)
+                .filter(Conversacion.duracion_total < 300)  # Menos de 5 minutos
+                .count()
             )
             
             return {
                 "total_conversaciones": total,
                 "conversaciones_con_error": errores,
-                "tasa_abandono": (errores / total * 100) if total > 0 else 0,
-                "conversaciones_por_menu": dict(conversaciones_por_menu)
+                "conversaciones_cortas": conversaciones_cortas,
+                "tasa_abandono": (conversaciones_cortas / total * 100) if total > 0 else 0
             }
         except Exception as e:
             raise Exception(f"Error al obtener estadísticas: {e}")

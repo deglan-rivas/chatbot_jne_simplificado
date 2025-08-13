@@ -10,6 +10,16 @@ async def startup_event():
     print("🚀 Inicializando conexiones de base de datos...")
     inicializar_conexiones()
     print("✅ Conexiones inicializadas")
+    
+    # Verificar que Redis esté funcionando
+    try:
+        from chatbot.database.connection import obtener_cliente_redis
+        redis_client = obtener_cliente_redis()
+        redis_client.ping()
+        print("✅ Redis conectado correctamente")
+    except Exception as e:
+        print(f"⚠️ Advertencia: Redis no está disponible: {e}")
+        print("   El sistema funcionará pero sin memoria de chat")
 
 # Routers
 app.include_router(telegram.router, prefix="/webhook/telegram", tags=["Telegram"])

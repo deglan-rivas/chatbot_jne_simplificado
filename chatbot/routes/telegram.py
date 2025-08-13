@@ -6,7 +6,7 @@ from chatbot.services.db_logger import log_message
 
 router = APIRouter()
 
-@router.post("x")
+@router.post("/x")
 async def telegram_webhook(req: Request):
     # Aquí debes extraer el mensaje de Telegram y el user_id
     # Enviar "typing..." a Telegram para mejorar UX
@@ -24,6 +24,8 @@ async def telegram_webhook(req: Request):
     return {"status": "ok"}
 
 import os
+import httpx
+
 from dotenv import load_dotenv
 from typing import Dict
 from openai import OpenAI
@@ -32,6 +34,8 @@ load_dotenv()
 
 # Cliente LLM (usa OpenAI, pero puedes cambiar a cualquier API)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+TELEGRAM_API_KEY = os.getenv("TELEGRAM_API_KEY")
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_API_KEY}"
 
 # Estado de usuarios en memoria (puedes cambiar a base de datos)
 user_states: Dict[int, dict] = {}
@@ -134,3 +138,28 @@ async def tilin_chatbot(req: Request):
     # Si todo falla, reiniciar
     user_states[chat_id] = {"stage": "main", "flow": []}
     return {"reply": menus["main"]["text"]}
+
+# para probar el http de vscode ports con datos móviles de mi celular, con wifi NAZCA o ethernet NAZCAG hay firewall :c con https de vscode ports pide loguearse a github e igual no funca desde cliente xd con http y datos móviles si corre bien pero algo más lento, cuando pase a qa pedirle a infra que le dé un dominio y reemplazarlo en el webhook de telegram
+@router.get("/ra")
+async def tilin_chatbot_ra(req: Request):
+    return {"reply": "raaa"}
+
+@router.post("/jne")
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    print("Mensaje recibido:", data)
+    # Mensaje recibido: {'update_id': 23831431, 'message': {'message_id': 804, 'from': {'id': 1272944550, 'is_bot': False, 'first_name': 'Jesus', 'last_name': 'R', 'username': 'TitisTilin', 'language_code': 'en'}, 'chat': {'id': 1272944550, 'first_name': 'Jesus', 'last_name': 'R', 'username': 'TitisTilin', 'type': 'private'}, 'date': 1755102670, 'text': 'hola'}}
+
+    # Si hay texto en el mensaje
+    if "message" in data and "text" in data["message"]:
+        chat_id = data["message"]["chat"]["id"]
+        text = data["message"]["text"]
+
+        # Responder al usuario
+        async with httpx.AsyncClient() as client:
+            await client.post(f"{TELEGRAM_API_URL}/sendMessage", json={
+                "chat_id": chat_id,
+                "text": f"Recibí tu mensaje: {text}"
+            })
+
+    return {"ok": True}

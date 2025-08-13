@@ -1,9 +1,15 @@
 from fastapi import FastAPI, Request
 from chatbot.routes import telegram, api_gateway
+from chatbot.database.connection import inicializar_conexiones
 
 app = FastAPI(title="Chatbot JNE Simplificado")
 
-# print("running")
+# Inicializar conexiones de base de datos al arrancar
+@app.on_event("startup")
+async def startup_event():
+    print("🚀 Inicializando conexiones de base de datos...")
+    inicializar_conexiones()
+    print("✅ Conexiones inicializadas")
 
 # Routers
 app.include_router(telegram.router, prefix="/webhook/telegram", tags=["Telegram"])

@@ -39,21 +39,21 @@ user_states: Dict[int, dict] = {}
 # Definición de menús y submenús
 menus = {
     "main": {
-        "text": "Menú principal:\n1. procesos_electorales\n2. sistemas_informaticos\n3. consulta_jne",
-        "options": {"1": "procesos_electorales", "2": "sistemas_informaticos", "3": "consulta_jne"}
+        "text": "Menú principal:\n1. procesos_electorales\n2. Información Institucional\n3. Serivcios Digitales",
+        "options": {"1": "procesos_electorales", "2": "Información Institucional", "3": "Serivcios Digitales"}
     },
     "procesos_electorales": {
         "text": "Procesos electorales:\n1. Organización Política\n2. Cronograma Electoral\n3. Jurado Especial Electoral\n4. Alianzas Políticas\n5. Afiliados\n6. Personeros\n7. Candidatos\n8. Autoridades Electas",
         "options": {"1": "organizacion_politica", "2": "cronograma_electoral", "3": "jee", "4": "alianzas_politicas", "5": "afiliados", "6": "personeros", "7": "candidatos", "8": "autoridades_electas"}
+    },    
+    "Información Institucional": {
+        "text": "Información general:\n1. Pleno\n2. Sedes\n3. Organigrama\n4. Funcionarios\n1. ODE",
+        "options": {"1": "pleno", "2": "sedes", "3": "organigrama", "4": "funcionarios", "5": "ode"}
     },
-    "sistemas_informaticos": {
+    "Serivcios Digitales": {
         "text": "Sistemas informáticos:\n1. Jurisprudencia\n2. Administrativos",
         "options": {"1": "jurisprudencia", "2": "administrativos"}
     },
-    "consulta_jne": {
-        "text": "Información general:\n1. Pleno\n2. Sedes\n3. Organigrama\n4. Funcionarios\n1. ODE",
-        "options": {"1": "pleno", "2": "sedes", "3": "organigrama", "4": "funcionarios", "5": "ode"}
-    }
 }
 
 # Contexto adicional según el submenú final

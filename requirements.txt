@@ -1,4 +1,8 @@
 fastapi
-python-dotenv
 uvicorn
+python-dotenv
+openai
 redis
+sqlalchemy
+psycopg2-binary
+alembic

@@ -4,9 +4,34 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings:
+    # Configuración de Telegram
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     API_KEY: str = os.getenv("API_KEY", "")
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    DB_URL: str = os.getenv("DB_URL", "sqlite:///./chatbot.db")
+    
+    # Configuración de PostgreSQL
+    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_PORT: int = int(os.getenv("DB_PORT", "5432"))
+    DB_NAME: str = os.getenv("DB_NAME", "ELECCIA_CHATBOT")
+    DB_USER: str = os.getenv("DB_USER", "postgres")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "123456")
+    
+    # Configuración de Redis (compatible con Docker)
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+    REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
+    
+    @property
+    def DB_URL(self) -> str:
+        """Construye la URL de conexión a PostgreSQL"""
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+    
+    @property
+    def REDIS_URL(self) -> str:
+        """Construye la URL de conexión a Redis"""
+        if self.REDIS_PASSWORD:
+            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+        else:
+            return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 settings = Settings()

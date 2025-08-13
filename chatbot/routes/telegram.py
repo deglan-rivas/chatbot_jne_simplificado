@@ -28,12 +28,16 @@ import httpx
 
 from dotenv import load_dotenv
 from typing import Dict
-from openai import OpenAI
+# from openai import OpenAI
+from google import genai
+from google.genai import types
 
 load_dotenv()
 
 # Cliente LLM (usa OpenAI, pero puedes cambiar a cualquier API)
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = genai.Client()
+
 TELEGRAM_API_KEY = os.getenv("TELEGRAM_API_KEY")
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_API_KEY}"
 
@@ -83,14 +87,29 @@ context_map = {
 def send_to_llm(user_input: str, extra_context: str) -> str:
     """Envía la pregunta al LLM con contexto adicional."""
     prompt = f"{extra_context}\n\nPregunta del usuario: {user_input}"
-    response = client.chat.completions.create(
-        model="gpt-5-nano",
-        # model="gpt-5",
-        # model="gpt-4o-mini",
-        messages=[{"role": "system", "content": "Eres un asistente experto en el tema indicado. Responde brevemente en menos de 60 palabras"},
-                  {"role": "user", "content": prompt}]
+
+    # usando OpenAI
+    # response = client.chat.completions.create(
+    #     model="gpt-5-nano",
+    #     # model="gpt-5",
+    #     # model="gpt-4o-mini",
+    #     messages=[{"role": "system", "content": "Eres un asistente experto en el tema indicado. Responde brevemente en menos de 60 palabras"},
+    #               {"role": "user", "content": prompt}]
+    # )
+    # return response.choices[0].message.content
+
+    # usando Gemini
+    response = client.models.generate_content(
+        # model="gemini-2.5-flash",
+        # model="gemini-2.5-flash-lite",
+        model="gemma-3-27b-it",
+        contents=prompt,
+        # config=types.GenerateContentConfig(
+        #     thinking_config=types.ThinkingConfig(thinking_budget=0) # Disables thinking
+        # ),
     )
-    return response.choices[0].message.content
+    print(f"respuesta: {response.text}")
+    return response.text
 
 
 @router.post("")
@@ -142,6 +161,17 @@ async def tilin_chatbot(req: Request):
 # para probar el http de vscode ports con datos móviles de mi celular, con wifi NAZCA o ethernet NAZCAG hay firewall :c con https de vscode ports pide loguearse a github e igual no funca desde cliente xd con http y datos móviles si corre bien pero algo más lento, cuando pase a qa pedirle a infra que le dé un dominio y reemplazarlo en el webhook de telegram
 @router.get("/ra")
 async def tilin_chatbot_ra(req: Request):
+    models = client.models.list()
+    # model_names = []
+    
+    # Itera sobre el objeto Pager para obtener cada modelo
+    for m in models:
+        # Aquí puedes acceder a las propiedades de cada modelo, como el nombre
+        # if 'generateContent' in m.supported_generation_methods:
+        #     model_names.append(m.name)
+        print(m.name)
+            
+    # print(f"Models: {model_names}")
     return {"reply": "raaa"}
 
 @router.post("/jne")

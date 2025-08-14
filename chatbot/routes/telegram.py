@@ -32,8 +32,8 @@ load_dotenv()
 # client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 client = genai.Client()
 
-TELEGRAM_API_KEY = os.getenv("TELEGRAM_API_KEY")
-TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_API_KEY}"
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 # Estado de usuarios en memoria (puedes cambiar a base de datos)
 user_states: Dict[int, dict] = {}

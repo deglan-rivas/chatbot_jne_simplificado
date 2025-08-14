@@ -107,8 +107,11 @@ def send_to_llm(user_input: str, extra_context: str) -> str:
 @router.post("")
 async def tilin_chatbot(req: Request):
     body = await req.json()
-    chat_id = body.get("chat_id", 0)  # Si usas Telegram, este será el ID del usuario
-    text = body.get("text", "").strip()
+    datos = normalizar_input_telegram(body)
+
+    chat_id = datos["chat_id"]
+    text = datos["text"]
+
     print(f"chat_id: {chat_id}, text: {text}")
     print(f"user_states: {user_states}")
 
@@ -137,6 +140,7 @@ async def tilin_chatbot(req: Request):
             estado_actual={"stage": "main", "flow": []}
         )
         
+        await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
         return {"reply": respuesta}
 
     # Obtener el estado actual del usuario
@@ -170,6 +174,7 @@ async def tilin_chatbot(req: Request):
                     estado_actual=state.copy()
                 )
                 
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             else:  # Es un submenú final, ahora esperamos la pregunta
                 state["stage"] = "awaiting_question"
@@ -184,6 +189,7 @@ async def tilin_chatbot(req: Request):
                     estado_actual=state.copy()
                 )
                 
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
         else:
             respuesta = f"Opción no válida. {menus[state['stage']]['text']}"
@@ -196,6 +202,7 @@ async def tilin_chatbot(req: Request):
                 estado_actual=state.copy()
             )
             
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
             return {"reply": respuesta}
 
     # Si el usuario ya eligió submenú y está enviando pregunta
@@ -215,6 +222,7 @@ async def tilin_chatbot(req: Request):
             
             # Cambiar estado a esperando confirmación de otra consulta
             state["stage"] = "awaiting_another_question"
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta_completa})
             return {"reply": respuesta_completa}
             
         except Exception as e:
@@ -231,6 +239,7 @@ async def tilin_chatbot(req: Request):
             
             # Reiniciar flujo
             user_states[chat_id] = {"stage": "main", "flow": []}
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta_error})
             return {"reply": respuesta_error}
 
     # Si el usuario está confirmando si tiene otra consulta
@@ -251,6 +260,7 @@ async def tilin_chatbot(req: Request):
             
             # Reiniciar flujo
             user_states[chat_id] = {"stage": "main", "flow": []}
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
             return {"reply": respuesta}
             
         elif text_lower in ["no", "n", "0"]:
@@ -275,6 +285,7 @@ async def tilin_chatbot(req: Request):
             if chat_id in user_states:
                 del user_states[chat_id]
             
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta_final})
             return {"reply": respuesta_final}
             
         else:
@@ -289,6 +300,7 @@ async def tilin_chatbot(req: Request):
                 estado_actual=state.copy()
             )
             
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta_clarificacion})
             return {"reply": respuesta_clarificacion}
 
     # Si todo falla, reiniciar
@@ -303,6 +315,7 @@ async def tilin_chatbot(req: Request):
         estado_actual={"stage": "main", "flow": []}
     )
     
+    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta_fallback})
     return {"reply": respuesta_fallback}
 
 # Comando para finalizar conversación manualmente
@@ -405,6 +418,7 @@ async def ver_estado_usuario(chat_id: int):
 # para probar el http de vscode ports con datos móviles de mi celular, con wifi NAZCA o ethernet NAZCAG hay firewall :c con https de vscode ports pide loguearse a github e igual no funca desde cliente xd con http y datos móviles si corre bien pero algo más lento, cuando pase a qa pedirle a infra que le dé un dominio y reemplazarlo en el webhook de telegram
 @router.get("/ra")
 async def tilin_chatbot_ra(req: Request):
+    # await enviar_mensaje_telegram({"chat_id": 1272944550, "text": "Hola desde Python"})
     models = client.models.list()
     # model_names = []
     
@@ -467,3 +481,41 @@ async def telegram_webhook(request: Request):
         )
 
     return {"ok": True}
+
+async def enviar_mensaje_telegram(datos: dict):
+    """
+    Envía un mensaje a Telegram usando los datos proporcionados.
+    TODO: cambiar diccionario por objeto instanciado de clase TelegramManager 
+
+    Parámetros:
+        datos (dict): Debe contener las claves 'chat_id' y 'text'.
+    """
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"{TELEGRAM_API_URL}/sendMessage",
+            json={
+                "chat_id": datos["chat_id"],
+                "text": datos["text"]
+            }
+        )
+
+def normalizar_input_telegram(body: dict) -> dict:
+    """
+    Recibe el body del webhook de Telegram (o de pruebas tipo Postman)
+    y devuelve un dict con chat_id y text normalizados.
+    """
+    # Caso 1: webhook real de Telegram
+    if "message" in body and "chat" in body["message"]:
+        chat_id = body["message"]["chat"]["id"]
+        text = body["message"].get("text", "").strip()
+        return {"chat_id": chat_id, "text": text}
+
+    # Caso 2: input directo desde Postman o Insomnia (formato anterior)
+    if "chat_id" in body and "text" in body:
+        return {
+            "chat_id": body.get("chat_id", 0),
+            "text": body.get("text", "").strip()
+        }
+
+    # Si no coincide con ninguno
+    return {"chat_id": 0, "text": ""}

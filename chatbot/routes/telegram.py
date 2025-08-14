@@ -19,9 +19,11 @@ def get_chat_memory():
 
 import os
 import httpx
+import csv
+from pathlib import Path
 
 from dotenv import load_dotenv
-from typing import Dict
+from typing import Dict, List
 # from openai import OpenAI
 from google import genai
 from google.genai import types
@@ -38,6 +40,57 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 # Estado de usuarios en memoria (puedes cambiar a base de datos)
 user_states: Dict[int, dict] = {}
 
+# Cargar servicios digitales desde CSV
+def cargar_servicios_digitales() -> Dict[str, dict]:
+    """Carga los servicios digitales desde el archivo CSV"""
+    servicios = {}
+    csv_path = Path("./RAG/PRINCIPALES.csv")
+    
+    try:
+        if csv_path.exists():
+            with open(csv_path, 'r', encoding='utf-8') as file:
+                reader = csv.DictReader(file, delimiter=';')
+                for i, row in enumerate(reader, 1):
+                    servicios[str(i)] = {
+                        "nombre": row.get('TXNOMBRE', ''),
+                        "descripcion": row.get('TXDESCRIPCIONCORTA', ''),
+                        "enlace": row.get('TXENLACE', '')
+                    }
+            print(f"Servicios digitales cargados: {len(servicios)} servicios")
+        else:
+            print(f"Archivo CSV no encontrado en: {csv_path}")
+    except Exception as e:
+        print(f"Error al cargar servicios digitales: {e}")
+    
+    return servicios
+
+# Cargar servicios al inicio
+servicios_digitales = cargar_servicios_digitales()
+
+def generar_menu_servicios_digitales() -> str:
+    """Genera el texto del menú de servicios digitales"""
+    if not servicios_digitales:
+        return "No hay servicios digitales disponibles en este momento."
+    
+    menu_text = "Servicios digitales disponibles:\n"
+    for opcion, servicio in servicios_digitales.items():
+        nombre = servicio.get('nombre', 'Sin nombre')
+        # Truncar nombre si es muy largo
+        if len(nombre) > 50:
+            nombre = nombre[:47] + "..."
+        menu_text += f"{opcion}. {nombre}\n"
+    
+    menu_text += "\nElige un número para ver más detalles:"
+    return menu_text
+
+def generar_opciones_servicios_digitales() -> Dict[str, str]:
+    """Genera las opciones del menú de servicios digitales"""
+    opciones = {}
+    for opcion in servicios_digitales.keys():
+        opciones[opcion] = f"servicio_{opcion}"
+    return opciones
+
+
 # Definición de menús y submenús
 menus = {
     "main": {
@@ -53,9 +106,13 @@ menus = {
         "options": {"1": "pleno", "2": "sedes", "3": "organigrama", "4": "funcionarios", "5": "ode"}
     },
     "servicios_digitales": {
-        "text": "Sistemas informáticos:\n1. Jurisprudencia\n2. Administrativos",
-        "options": {"1": "jurisprudencia", "2": "administrativos"}
+        "text": "Servicios Digitales:\n1. Los servicios mas usados por la ciudadanía\n2. ¿Qué trámite deseas realizar?",
+        "options": {"1": "servicios_ciudadano", "2": "tramite"}
     },
+    "servicios_ciudadano": {
+        "text": generar_menu_servicios_digitales(),
+        "options": generar_opciones_servicios_digitales()
+    }
 }
 
 # Contexto adicional según el submenú final
@@ -68,8 +125,8 @@ context_map = {
     "personeros": "Se han acreditado 1,200 personeros para la supervisión de mesas de votación.",
     "candidatos": "Se presentarán 180 candidatos a alcaldías y 25 a gobiernos regionales.",
     "autoridades_electas": "En las últimas elecciones ganamos 5 gobiernos regionales y 40 alcaldías.",
-    "jurisprudencia": "Existen 15 resoluciones del JNE que han establecido precedentes en materia electoral.",
-    "administrativos": "La oficina central cuenta con 85 trabajadores administrativos distribuidos en 10 áreas.",
+    "servicios_ciudadano": "Existen 15 resoluciones del JNE que han establecido precedentes en materia electoral.",
+    "tramite": "La oficina central cuenta con 85 trabajadores administrativos distribuidos en 10 áreas.",
     "pleno": "El pleno está conformado por 5 miembros titulares y 2 suplentes.",
     "sedes": "Tenemos sedes en Lima, Cusco, Piura y Chiclayo.",
     "organigrama": "La estructura incluye presidencia, secretaría general, direcciones técnicas y oficinas regionales.",
@@ -162,7 +219,36 @@ async def tilin_chatbot(req: Request):
             chosen_key = options[text]
             print(f"chosen_key: {chosen_key}")
             state["flow"].append(chosen_key)
-            if chosen_key in menus:  # Es otro menú intermedio
+            
+            # Verificar si es un servicio digital específico
+            if chosen_key.startswith("servicio_"):
+                # Es un servicio digital seleccionado
+                servicio_numero = chosen_key.replace("servicio_", "")
+                if servicio_numero in servicios_digitales:
+                    servicio = servicios_digitales[servicio_numero]
+                    respuesta = f"📋 **{servicio['nombre']}**\n\n"
+                    respuesta += f"📝 **Descripción:** {servicio['descripcion']}\n\n"
+                    respuesta += f"🔗 **Enlace:** {servicio['enlace']}\n\n"
+                    respuesta += "¿Tienes otra consulta? (responde 'si' o 'no'):"
+                    
+                    # Agregar respuesta del bot a la conversación
+                    chat_memory.agregar_respuesta_bot(
+                        user_id=str(chat_id),
+                        respuesta=respuesta,
+                        menu_actual="servicios_digitales",
+                        estado_actual=state.copy()
+                    )
+                    
+                    # Cambiar estado a esperando confirmación de otra consulta
+                    state["stage"] = "awaiting_another_question"
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+                else:
+                    respuesta = "Servicio no encontrado. Por favor, elige una opción válida."
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+            
+            elif chosen_key in menus:  # Es otro menú intermedio
                 state["stage"] = chosen_key
                 respuesta = menus[chosen_key]["text"]
                 
@@ -265,7 +351,7 @@ async def tilin_chatbot(req: Request):
             
         elif text_lower in ["no", "n", "0"]:
             # Usuario no quiere más consultas, finalizar sesión
-            respuesta_final = "Perfecto, ha sido un placer ayudarte. Tu conversación ha sido guardada. ¡Hasta luego!"
+            respuesta_final = "Perfecto, ha sido un placer ayudarte. ¡Hasta luego!"
             
             # Agregar respuesta final del bot
             chat_memory.agregar_respuesta_bot(
@@ -413,6 +499,32 @@ async def ver_estado_usuario(chat_id: int):
         "estado_memoria": estado_memoria,
         "conversacion_redis": conversacion_redis is not None,
         "conversacion_detalle": conversacion_redis
+    }
+
+# Comando para recargar servicios digitales
+@router.post("/recargar-servicios")
+async def recargar_servicios_digitales():
+    global servicios_digitales
+    
+    # Recargar servicios desde CSV
+    servicios_digitales = cargar_servicios_digitales()
+    
+    # Actualizar menús dinámicamente
+    if "servicios_ciudadano" in menus:
+        menus["servicios_ciudadano"]["text"] = generar_menu_servicios_digitales()
+        menus["servicios_ciudadano"]["options"] = generar_opciones_servicios_digitales()
+    
+    return {
+        "reply": f"Servicios digitales recargados: {len(servicios_digitales)} servicios disponibles",
+        "servicios_cargados": len(servicios_digitales)
+    }
+
+# Comando para ver servicios digitales disponibles
+@router.get("/servicios-disponibles")
+async def ver_servicios_disponibles():
+    return {
+        "total_servicios": len(servicios_digitales),
+        "servicios": servicios_digitales
     }
 
 # para probar el http de vscode ports con datos móviles de mi celular, con wifi NAZCA o ethernet NAZCAG hay firewall :c con https de vscode ports pide loguearse a github e igual no funca desde cliente xd con http y datos móviles si corre bien pero algo más lento, cuando pase a qa pedirle a infra que le dé un dominio y reemplazarlo en el webhook de telegram

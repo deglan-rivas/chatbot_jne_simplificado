@@ -4,6 +4,8 @@ from chatbot.services.prompt_enricher import enrich_prompt
 from chatbot.services.langgraph_runner import run_langgraph
 from chatbot.services.db_logger import log_message
 from chatbot.services.chat_memory_manager import ChatMemoryManager
+from chatbot.services.servicios_digitales_manager import ServiciosDigitalesManager
+from chatbot.services.informacion_institucional_manager import InformacionInstitucionalManager
 
 router = APIRouter()
 
@@ -17,13 +19,31 @@ def get_chat_memory():
         _chat_memory = ChatMemoryManager()
     return _chat_memory
 
+# Inicializar el gestor de servicios digitales (se creará cuando se necesite)
+_servicios_manager = None
+
+def get_servicios_manager():
+    """Obtiene la instancia de ServiciosDigitalesManager, creándola si es necesario"""
+    global _servicios_manager
+    if _servicios_manager is None:
+        _servicios_manager = ServiciosDigitalesManager()
+    return _servicios_manager
+
+# Inicializar el gestor de información institucional (se creará cuando se necesite)
+_info_institucional_manager = None
+
+def get_info_institucional_manager():
+    """Obtiene la instancia de InformacionInstitucionalManager, creándola si es necesario"""
+    global _info_institucional_manager
+    if _info_institucional_manager is None:
+        _info_institucional_manager = InformacionInstitucionalManager()
+    return _info_institucional_manager
+
 import os
 import httpx
-import csv
-from pathlib import Path
 
 from dotenv import load_dotenv
-from typing import Dict, List
+from typing import Dict
 # from openai import OpenAI
 from google import genai
 from google.genai import types
@@ -40,161 +60,6 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 # Estado de usuarios en memoria (puedes cambiar a base de datos)
 user_states: Dict[int, dict] = {}
 
-# Cargar servicios digitales desde CSV
-def cargar_servicios_digitales() -> Dict[str, dict]:
-    """Carga los servicios digitales desde el archivo CSV"""
-    servicios = {}
-    csv_path = Path("./RAG/PRINCIPALES.csv")
-    
-    try:
-        if csv_path.exists():
-            with open(csv_path, 'r', encoding='utf-8') as file:
-                reader = csv.DictReader(file, delimiter=';')
-                for i, row in enumerate(reader, 1):
-                    servicios[str(i)] = {
-                        "nombre": row.get('TXNOMBRE', ''),
-                        "descripcion": row.get('TXDESCRIPCIONCORTA', ''),
-                        "enlace": row.get('TXENLACE', '')
-                    }
-            print(f"Servicios digitales cargados: {len(servicios)} servicios")
-        else:
-            print(f"Archivo CSV no encontrado en: {csv_path}")
-    except Exception as e:
-        print(f"Error al cargar servicios digitales: {e}")
-    
-    return servicios
-
-# Cargar servicios para búsqueda semántica
-def cargar_servicios_busqueda() -> List[dict]:
-    """Carga todos los servicios para búsqueda semántica"""
-    servicios = []
-    csv_path = Path("./RAG/SERVICIOS_DIGITALES.csv")
-    
-    try:
-        if csv_path.exists():
-            with open(csv_path, 'r', encoding='utf-8') as file:
-                reader = csv.DictReader(file, delimiter=';')
-                for row in reader:
-                    servicios.append({
-                        "nombre": row.get('TXNOMBRE', ''),
-                        "descripcion": row.get('TXDESCRIPCIONCORTA', ''),
-                        "enlace": row.get('TXENLACE', '')
-                    })
-            print(f"Servicios para búsqueda cargados: {len(servicios)} servicios")
-        else:
-            print(f"Archivo CSV de búsqueda no encontrado en: {csv_path}")
-    except Exception as e:
-        print(f"Error al cargar servicios para búsqueda: {e}")
-    
-    return servicios
-
-# Cargar servicios al inicio
-servicios_digitales = cargar_servicios_digitales()
-servicios_busqueda = cargar_servicios_busqueda()
-
-def buscar_servicios_semanticamente(consulta_usuario: str, top_k: int = 5) -> List[dict]:
-    """
-    Busca servicios relevantes usando el LLM para análisis semántico
-    """
-    if not servicios_busqueda:
-        return []
-    
-    # Crear prompt para el LLM
-    servicios_texto = ""
-    for i, servicio in enumerate(servicios_busqueda):
-        servicios_texto += f"{i+1}. {servicio['nombre']}: {servicio['descripcion']}\n"
-    
-    prompt = f"""
-    Eres un asistente experto en servicios digitales del JNE. 
-    
-    El usuario busca: "{consulta_usuario}"
-    
-    Analiza los siguientes servicios y selecciona los {top_k} más relevantes para la consulta del usuario.
-    Responde SOLO con los números de los servicios más relevantes, separados por comas.
-    
-    Servicios disponibles:
-    {servicios_texto}
-    
-    Números de servicios más relevantes:"""
-    
-    try:
-        # Usar el LLM para encontrar servicios relevantes
-        response = client.models.generate_content(
-            model="gemma-3-27b-it",
-            contents=prompt
-        )
-        
-        # Parsear la respuesta del LLM
-        numeros_texto = response.text.strip()
-        numeros = []
-        
-        # Extraer números de la respuesta
-        for parte in numeros_texto.split(','):
-            parte = parte.strip()
-            if parte.isdigit():
-                numero = int(parte) - 1  # Convertir a índice base 0
-                if 0 <= numero < len(servicios_busqueda):
-                    numeros.append(numero)
-        
-        # Obtener los servicios seleccionados
-        servicios_seleccionados = []
-        for numero in numeros[:top_k]:
-            servicios_seleccionados.append(servicios_busqueda[numero])
-        
-        return servicios_seleccionados
-        
-    except Exception as e:
-        print(f"Error en búsqueda semántica: {e}")
-        # Fallback: devolver primeros servicios
-        return servicios_busqueda[:top_k]
-
-def generar_menu_servicios_busqueda(servicios_encontrados: List[dict]) -> str:
-    """Genera el menú de servicios encontrados por búsqueda semántica"""
-    if not servicios_encontrados:
-        return "No se encontraron servicios relevantes para tu consulta. Por favor, intenta con otros términos."
-    
-    menu_text = "Servicios encontrados para tu consulta:\n\n"
-    for i, servicio in enumerate(servicios_encontrados, 1):
-        nombre = servicio.get('nombre', 'Sin nombre')
-        # Truncar nombre si es muy largo
-        if len(nombre) > 60:
-            nombre = nombre[:57] + "..."
-        menu_text += f"{i}. {nombre}\n"
-    
-    menu_text += "\nElige un número para ver más detalles:"
-    return menu_text
-
-def generar_opciones_servicios_busqueda(servicios_encontrados: List[dict]) -> Dict[str, str]:
-    """Genera las opciones del menú de servicios encontrados"""
-    opciones = {}
-    for i in range(len(servicios_encontrados)):
-        opciones[str(i + 1)] = f"busqueda_{i}"
-    return opciones
-
-def generar_menu_servicios_digitales() -> str:
-    """Genera el texto del menú de servicios digitales"""
-    if not servicios_digitales:
-        return "No hay servicios digitales disponibles en este momento."
-    
-    menu_text = "Servicios digitales disponibles:\n"
-    for opcion, servicio in servicios_digitales.items():
-        nombre = servicio.get('nombre', 'Sin nombre')
-        # Truncar nombre si es muy largo
-        if len(nombre) > 50:
-            nombre = nombre[:47] + "..."
-        menu_text += f"{opcion}. {nombre}\n"
-    
-    menu_text += "\nElige un número para ver más detalles:"
-    return menu_text
-
-def generar_opciones_servicios_digitales() -> Dict[str, str]:
-    """Genera las opciones del menú de servicios digitales"""
-    opciones = {}
-    for opcion in servicios_digitales.keys():
-        opciones[opcion] = f"servicio_{opcion}"
-    return opciones
-
-
 # Definición de menús y submenús
 menus = {
     "main": {
@@ -206,16 +71,16 @@ menus = {
         "options": {"1": "organizacion_politica", "2": "cronograma_electoral", "3": "jee", "4": "alianzas_politicas", "5": "afiliados", "6": "personeros", "7": "candidatos", "8": "autoridades_electas"}
     },    
     "informacion_institucional": {
-        "text": "Información general:\n1. Pleno\n2. Sedes\n3. Organigrama\n4. Funcionarios\n5. ODE",
-        "options": {"1": "pleno", "2": "sedes", "3": "organigrama", "4": "funcionarios", "5": "ode"}
+        "text": "Información general:\n1. Pleno y Presidencia\n2. Funcionarios\n3. Jurados Electorales Especiales\n4. Sedes",
+        "options": {"1": "pleno", "2": "funcionarios", "3": "jee", "4": "sedes"}
     },
     "servicios_digitales": {
         "text": "Servicios Digitales:\n1. Los servicios mas usados por la ciudadanía\n2. Consulta por un trámite específico",
         "options": {"1": "servicios_ciudadano", "2": "tramite"}
     },
     "servicios_ciudadano": {
-        "text": generar_menu_servicios_digitales(),
-        "options": generar_opciones_servicios_digitales()
+        "text": "", 
+        "options": {}
     }
 }
 
@@ -231,11 +96,9 @@ context_map = {
     "autoridades_electas": "En las últimas elecciones ganamos 5 gobiernos regionales y 40 alcaldías.",
     "servicios_ciudadano": "Existen 15 resoluciones del JNE que han establecido precedentes en materia electoral.",
     "tramite": "La oficina central cuenta con 85 trabajadores administrativos distribuidos en 10 áreas.",
-    "pleno": "El pleno está conformado por 5 miembros titulares y 2 suplentes.",
-    "sedes": "Tenemos sedes en Lima, Cusco, Piura y Chiclayo.",
-    "organigrama": "La estructura incluye presidencia, secretaría general, direcciones técnicas y oficinas regionales.",
-    "funcionarios": "Entre nuestros funcionarios destacan la presidenta, el secretario general y 8 directores regionales.",
-    "ode": "Las Oficinas Descentralizadas de Elecciones operan en 45 provincias del país."
+    "pleno": "El pleno del JNE está conformado por 5 miembros titulares y 2 suplentes, todos expertos en derecho electoral y constitucional.",
+    "funcionarios": "El JNE cuenta con un equipo de funcionarios especializados distribuidos en diferentes direcciones y oficinas regionales.",
+    "sedes": "El JNE tiene presencia en Lima (sede central), Cusco, Nazca y cuenta con un Museo Electoral, además de oficinas desconcentradas en todo el país."
 }
 
 def send_to_llm(user_input: str, extra_context: str) -> str:
@@ -328,8 +191,9 @@ async def tilin_chatbot(req: Request):
             if chosen_key.startswith("servicio_"):
                 # Es un servicio digital seleccionado
                 servicio_numero = chosen_key.replace("servicio_", "")
-                if servicio_numero in servicios_digitales:
-                    servicio = servicios_digitales[servicio_numero]
+                servicios_manager = get_servicios_manager()
+                servicio = servicios_manager.obtener_servicio_principal(servicio_numero)
+                if servicio:
                     respuesta = f"📋 **{servicio['nombre']}**\n\n"
                     respuesta += f"📝 **Descripción:** {servicio['descripcion']}\n\n"
                     respuesta += f"🔗 **Enlace:** {servicio['enlace']}\n\n"
@@ -349,6 +213,35 @@ async def tilin_chatbot(req: Request):
                     return {"reply": respuesta}
                 else:
                     respuesta = "Servicio no encontrado. Por favor, elige una opción válida."
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+            
+            # Verificar si es un miembro del pleno
+            elif chosen_key.startswith("pleno_"):
+                # Es un miembro del pleno seleccionado
+                pleno_numero = chosen_key.replace("pleno_", "")
+                info_manager = get_info_institucional_manager()
+                miembro = info_manager.obtener_miembro_pleno(pleno_numero)
+                if miembro:
+                    respuesta = f"👨‍⚖️ **{miembro['cargo']}**\n\n"
+                    respuesta += f"👤 **Nombre:** {miembro['nombre']}\n\n"
+                    respuesta += f"📝 **Descripción:** {miembro['descripcion']}\n\n"
+                    respuesta += "¿Tienes otra consulta? (responde 'si' o 'no'):"
+                    
+                    # Agregar respuesta del bot a la conversación
+                    chat_memory.agregar_respuesta_bot(
+                        user_id=str(chat_id),
+                        respuesta=respuesta,
+                        menu_actual="pleno",
+                        estado_actual=state.copy()
+                    )
+                    
+                    # Cambiar estado a esperando confirmación de otra consulta
+                    state["stage"] = "awaiting_another_question"
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+                else:
+                    respuesta = "Miembro del pleno no encontrado. Por favor, elige una opción válida."
                     await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                     return {"reply": respuesta}
             
@@ -382,6 +275,19 @@ async def tilin_chatbot(req: Request):
             
             elif chosen_key in menus:  # Es otro menú intermedio
                 state["stage"] = chosen_key
+                
+                # Si es el menú de servicios ciudadano, inicializarlo dinámicamente
+                if chosen_key == "servicios_ciudadano":
+                    servicios_manager = get_servicios_manager()
+                    menus[chosen_key]["text"] = servicios_manager.generar_menu_servicios_digitales()
+                    menus[chosen_key]["options"] = servicios_manager.generar_opciones_servicios_digitales()
+                
+                # Si es el menú del pleno, inicializarlo dinámicamente
+                elif chosen_key == "pleno":
+                    info_manager = get_info_institucional_manager()
+                    menus[chosen_key]["text"] = info_manager.generar_menu_pleno()
+                    menus[chosen_key]["options"] = info_manager.generar_opciones_pleno()
+                
                 respuesta = menus[chosen_key]["text"]
                 
                 # Agregar respuesta del bot a la conversación
@@ -408,21 +314,88 @@ async def tilin_chatbot(req: Request):
                 
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
-            else:  # Es un submenú final, ahora esperamos la pregunta
-                state["stage"] = "awaiting_question"
-                state["final_choice"] = chosen_key
-                respuesta = f"Has seleccionado {chosen_key}. Ahora envía tu pregunta:"
+            elif chosen_key == "funcionarios":  # Opción de funcionarios
+                info_manager = get_info_institucional_manager()
+                respuesta = info_manager.obtener_info_funcionarios() + "\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
                 
                 # Agregar respuesta del bot a la conversación
                 chat_memory.agregar_respuesta_bot(
                     user_id=str(chat_id),
                     respuesta=respuesta,
-                    menu_actual=chosen_key,
+                    menu_actual="informacion_institucional",
                     estado_actual=state.copy()
                 )
                 
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
+            elif chosen_key == "jee":  # Opción de JEE
+                info_manager = get_info_institucional_manager()
+                respuesta = info_manager.obtener_info_jee() + "\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="informacion_institucional",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            elif chosen_key == "sedes":  # Opción de sedes
+                info_manager = get_info_institucional_manager()
+                respuesta = info_manager.obtener_info_sedes() + "\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="informacion_institucional",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            else:  # Es un submenú final, ahora esperamos la pregunta
+                state["stage"] = "awaiting_question"
+                state["final_choice"] = chosen_key
+                
+                # Si es pleno, mostrar menú especial
+                if chosen_key == "pleno":
+                    info_manager = get_info_institucional_manager()
+                    respuesta = info_manager.generar_menu_pleno()
+                    
+                    # Agregar respuesta del bot a la conversación
+                    chat_memory.agregar_respuesta_bot(
+                        user_id=str(chat_id),
+                        respuesta=respuesta,
+                        menu_actual=chosen_key,
+                        estado_actual=state.copy()
+                    )
+                    
+                    # Cambiar estado a esperar selección del pleno
+                    state["stage"] = "awaiting_pleno_selection"
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+                else:
+                    respuesta = f"Has seleccionado {chosen_key}. Ahora envía tu pregunta:"
+                    
+                    # Agregar respuesta del bot a la conversación
+                    chat_memory.agregar_respuesta_bot(
+                        user_id=str(chat_id),
+                        respuesta=respuesta,
+                        menu_actual=chosen_key,
+                        estado_actual=state.copy()
+                    )
+                    
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
         else:
             respuesta = f"Opción no válida. {menus[state['stage']]['text']}"
             
@@ -478,7 +451,8 @@ async def tilin_chatbot(req: Request):
     if state["stage"] == "awaiting_tramite_query":
         try:
             # Buscar servicios relevantes usando búsqueda semántica
-            servicios_encontrados = buscar_servicios_semanticamente(text, top_k=5)
+            servicios_manager = get_servicios_manager()
+            servicios_encontrados = servicios_manager.buscar_servicios_semanticamente(text, top_k=5)
             
             if servicios_encontrados:
                 # Guardar servicios encontrados en el estado
@@ -486,7 +460,7 @@ async def tilin_chatbot(req: Request):
                 state["stage"] = "awaiting_tramite_selection"
                 
                 # Generar menú con servicios encontrados
-                respuesta = generar_menu_servicios_busqueda(servicios_encontrados)
+                respuesta = servicios_manager.generar_menu_servicios_busqueda(servicios_encontrados)
                 
                 # Agregar respuesta del bot a la conversación
                 chat_memory.agregar_respuesta_bot(
@@ -563,6 +537,42 @@ async def tilin_chatbot(req: Request):
                 return {"reply": respuesta}
         else:
             respuesta = "Por favor, elige una opción válida del menú."
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+
+    # Si el usuario está seleccionando un miembro del pleno
+    if state["stage"] == "awaiting_pleno_selection":
+        # Verificar si la opción seleccionada es válida
+        if text.isdigit():
+            opcion = int(text)
+            info_manager = get_info_institucional_manager()
+            pleno_miembros = info_manager.pleno_miembros
+            
+            if 1 <= opcion <= len(pleno_miembros):
+                miembro = pleno_miembros[str(opcion)]
+                respuesta = f"👨‍⚖️ **{miembro['cargo']}**\n\n"
+                respuesta += f"👤 **Nombre:** {miembro['nombre']}\n\n"
+                respuesta += f"📝 **Descripción:** {miembro['descripcion']}\n\n"
+                respuesta += "¿Tienes otra consulta? (responde 'si' o 'no'):"
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="pleno",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            else:
+                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(pleno_miembros)}."
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+        else:
+            respuesta = "Por favor, elige una opción válida del menú del pleno."
             await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
             return {"reply": respuesta}
 
@@ -742,48 +752,91 @@ async def ver_estado_usuario(chat_id: int):
 # Comando para recargar servicios digitales
 @router.post("/recargar-servicios")
 async def recargar_servicios_digitales():
-    global servicios_digitales
+    servicios_manager = get_servicios_manager()
     
     # Recargar servicios desde CSV
-    servicios_digitales = cargar_servicios_digitales()
+    servicios_manager.recargar_servicios()
     
     # Actualizar menús dinámicamente
     if "servicios_ciudadano" in menus:
-        menus["servicios_ciudadano"]["text"] = generar_menu_servicios_digitales()
-        menus["servicios_ciudadano"]["options"] = generar_opciones_servicios_digitales()
+        menus["servicios_ciudadano"]["text"] = servicios_manager.generar_menu_servicios_digitales()
+        menus["servicios_ciudadano"]["options"] = servicios_manager.generar_opciones_servicios_digitales()
     
     return {
-        "reply": f"Servicios digitales recargados: {len(servicios_digitales)} servicios disponibles",
-        "servicios_cargados": len(servicios_digitales)
+        "reply": f"Servicios digitales recargados: {servicios_manager.obtener_estadisticas()['servicios_principales']} servicios disponibles",
+        "servicios_cargados": servicios_manager.obtener_estadisticas()['servicios_principales']
     }
 
 # Comando para ver servicios digitales disponibles
 @router.get("/servicios-disponibles")
 async def ver_servicios_disponibles():
+    servicios_manager = get_servicios_manager()
     return {
-        "total_servicios": len(servicios_digitales),
-        "servicios": servicios_digitales
+        "total_servicios": servicios_manager.obtener_estadisticas()['servicios_principales'],
+        "servicios": servicios_manager.servicios_digitales
     }
 
 # Comando para recargar servicios de búsqueda
 @router.post("/recargar-servicios-busqueda")
 async def recargar_servicios_busqueda():
-    global servicios_busqueda
+    servicios_manager = get_servicios_manager()
     
     # Recargar servicios desde CSV
-    servicios_busqueda = cargar_servicios_busqueda()
+    servicios_manager.recargar_servicios()
     
     return {
-        "reply": f"Servicios de búsqueda recargados: {len(servicios_busqueda)} servicios disponibles",
-        "servicios_cargados": len(servicios_busqueda)
+        "reply": f"Servicios de búsqueda recargados: {servicios_manager.obtener_estadisticas()['servicios_busqueda']} servicios disponibles",
+        "servicios_cargados": servicios_manager.obtener_estadisticas()['servicios_busqueda']
     }
 
 # Comando para ver servicios de búsqueda disponibles
 @router.get("/servicios-busqueda")
 async def ver_servicios_busqueda():
+    servicios_manager = get_servicios_manager()
     return {
-        "total_servicios": len(servicios_busqueda),
-        "servicios": servicios_busqueda
+        "total_servicios": servicios_manager.obtener_estadisticas()['servicios_busqueda'],
+        "servicios": servicios_manager.servicios_busqueda
+    }
+
+# Comando para obtener estadísticas generales de servicios
+@router.get("/estadisticas-servicios")
+async def obtener_estadisticas_servicios():
+    servicios_manager = get_servicios_manager()
+    return {
+        "estadisticas": servicios_manager.obtener_estadisticas(),
+        "servicios_principales": servicios_manager.servicios_digitales,
+        "servicios_busqueda": servicios_manager.servicios_busqueda
+    }
+
+# Comando para recargar información del pleno
+@router.post("/recargar-pleno")
+async def recargar_pleno():
+    info_manager = get_info_institucional_manager()
+    
+    # Recargar información del pleno desde CSV
+    info_manager.recargar_pleno()
+    
+    return {
+        "reply": f"Información del pleno recargada: {info_manager.obtener_estadisticas()['miembros_pleno']} miembros disponibles",
+        "miembros_cargados": info_manager.obtener_estadisticas()['miembros_pleno']
+    }
+
+# Comando para ver información del pleno disponible
+@router.get("/pleno-disponible")
+async def ver_pleno_disponible():
+    info_manager = get_info_institucional_manager()
+    return {
+        "total_miembros": info_manager.obtener_estadisticas()['miembros_pleno'],
+        "miembros": info_manager.pleno_miembros
+    }
+
+# Comando para obtener estadísticas de información institucional
+@router.get("/estadisticas-institucional")
+async def obtener_estadisticas_institucional():
+    info_manager = get_info_institucional_manager()
+    return {
+        "estadisticas": info_manager.obtener_estadisticas(),
+        "miembros_pleno": info_manager.pleno_miembros
     }
 
 # para probar el http de vscode ports con datos móviles de mi celular, con wifi NAZCA o ethernet NAZCAG hay firewall :c con https de vscode ports pide loguearse a github e igual no funca desde cliente xd con http y datos móviles si corre bien pero algo más lento, cuando pase a qa pedirle a infra que le dé un dominio y reemplazarlo en el webhook de telegram

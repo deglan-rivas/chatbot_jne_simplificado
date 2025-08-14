@@ -64,8 +64,112 @@ def cargar_servicios_digitales() -> Dict[str, dict]:
     
     return servicios
 
+# Cargar servicios para búsqueda semántica
+def cargar_servicios_busqueda() -> List[dict]:
+    """Carga todos los servicios para búsqueda semántica"""
+    servicios = []
+    csv_path = Path("./RAG/SERVICIOS_DIGITALES.csv")
+    
+    try:
+        if csv_path.exists():
+            with open(csv_path, 'r', encoding='utf-8') as file:
+                reader = csv.DictReader(file, delimiter=';')
+                for row in reader:
+                    servicios.append({
+                        "nombre": row.get('TXNOMBRE', ''),
+                        "descripcion": row.get('TXDESCRIPCIONCORTA', ''),
+                        "enlace": row.get('TXENLACE', '')
+                    })
+            print(f"Servicios para búsqueda cargados: {len(servicios)} servicios")
+        else:
+            print(f"Archivo CSV de búsqueda no encontrado en: {csv_path}")
+    except Exception as e:
+        print(f"Error al cargar servicios para búsqueda: {e}")
+    
+    return servicios
+
 # Cargar servicios al inicio
 servicios_digitales = cargar_servicios_digitales()
+servicios_busqueda = cargar_servicios_busqueda()
+
+def buscar_servicios_semanticamente(consulta_usuario: str, top_k: int = 5) -> List[dict]:
+    """
+    Busca servicios relevantes usando el LLM para análisis semántico
+    """
+    if not servicios_busqueda:
+        return []
+    
+    # Crear prompt para el LLM
+    servicios_texto = ""
+    for i, servicio in enumerate(servicios_busqueda):
+        servicios_texto += f"{i+1}. {servicio['nombre']}: {servicio['descripcion']}\n"
+    
+    prompt = f"""
+    Eres un asistente experto en servicios digitales del JNE. 
+    
+    El usuario busca: "{consulta_usuario}"
+    
+    Analiza los siguientes servicios y selecciona los {top_k} más relevantes para la consulta del usuario.
+    Responde SOLO con los números de los servicios más relevantes, separados por comas.
+    
+    Servicios disponibles:
+    {servicios_texto}
+    
+    Números de servicios más relevantes:"""
+    
+    try:
+        # Usar el LLM para encontrar servicios relevantes
+        response = client.models.generate_content(
+            model="gemma-3-27b-it",
+            contents=prompt
+        )
+        
+        # Parsear la respuesta del LLM
+        numeros_texto = response.text.strip()
+        numeros = []
+        
+        # Extraer números de la respuesta
+        for parte in numeros_texto.split(','):
+            parte = parte.strip()
+            if parte.isdigit():
+                numero = int(parte) - 1  # Convertir a índice base 0
+                if 0 <= numero < len(servicios_busqueda):
+                    numeros.append(numero)
+        
+        # Obtener los servicios seleccionados
+        servicios_seleccionados = []
+        for numero in numeros[:top_k]:
+            servicios_seleccionados.append(servicios_busqueda[numero])
+        
+        return servicios_seleccionados
+        
+    except Exception as e:
+        print(f"Error en búsqueda semántica: {e}")
+        # Fallback: devolver primeros servicios
+        return servicios_busqueda[:top_k]
+
+def generar_menu_servicios_busqueda(servicios_encontrados: List[dict]) -> str:
+    """Genera el menú de servicios encontrados por búsqueda semántica"""
+    if not servicios_encontrados:
+        return "No se encontraron servicios relevantes para tu consulta. Por favor, intenta con otros términos."
+    
+    menu_text = "Servicios encontrados para tu consulta:\n\n"
+    for i, servicio in enumerate(servicios_encontrados, 1):
+        nombre = servicio.get('nombre', 'Sin nombre')
+        # Truncar nombre si es muy largo
+        if len(nombre) > 60:
+            nombre = nombre[:57] + "..."
+        menu_text += f"{i}. {nombre}\n"
+    
+    menu_text += "\nElige un número para ver más detalles:"
+    return menu_text
+
+def generar_opciones_servicios_busqueda(servicios_encontrados: List[dict]) -> Dict[str, str]:
+    """Genera las opciones del menú de servicios encontrados"""
+    opciones = {}
+    for i in range(len(servicios_encontrados)):
+        opciones[str(i + 1)] = f"busqueda_{i}"
+    return opciones
 
 def generar_menu_servicios_digitales() -> str:
     """Genera el texto del menú de servicios digitales"""
@@ -106,7 +210,7 @@ menus = {
         "options": {"1": "pleno", "2": "sedes", "3": "organigrama", "4": "funcionarios", "5": "ode"}
     },
     "servicios_digitales": {
-        "text": "Servicios Digitales:\n1. Los servicios mas usados por la ciudadanía\n2. ¿Qué trámite deseas realizar?",
+        "text": "Servicios Digitales:\n1. Los servicios mas usados por la ciudadanía\n2. Consulta por un trámite específico",
         "options": {"1": "servicios_ciudadano", "2": "tramite"}
     },
     "servicios_ciudadano": {
@@ -169,8 +273,8 @@ async def tilin_chatbot(req: Request):
     chat_id = datos["chat_id"]
     text = datos["text"]
 
-    print(f"chat_id: {chat_id}, text: {text}")
-    print(f"user_states: {user_states}")
+    # print(f"chat_id: {chat_id}, text: {text}")
+    # print(f"user_states: {user_states}")
 
     # Obtener instancia de ChatMemoryManager
     chat_memory = get_chat_memory()
@@ -248,6 +352,34 @@ async def tilin_chatbot(req: Request):
                     await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                     return {"reply": respuesta}
             
+            # Verificar si es un servicio de búsqueda semántica
+            elif chosen_key.startswith("busqueda_"):
+                # Es un servicio encontrado por búsqueda semántica
+                busqueda_index = int(chosen_key.replace("busqueda_", ""))
+                if hasattr(state, 'servicios_encontrados') and busqueda_index < len(state['servicios_encontrados']):
+                    servicio = state['servicios_encontrados'][busqueda_index]
+                    respuesta = f"📋 **{servicio['nombre']}**\n\n"
+                    respuesta += f"📝 **Descripción:** {servicio['descripcion']}\n\n"
+                    respuesta += f"🔗 **Enlace:** {servicio['enlace']}\n\n"
+                    respuesta += "¿Tienes otra consulta? (responde 'si' o 'no'):"
+                    
+                    # Agregar respuesta del bot a la conversación
+                    chat_memory.agregar_respuesta_bot(
+                        user_id=str(chat_id),
+                        respuesta=respuesta,
+                        menu_actual="servicios_digitales",
+                        estado_actual=state.copy()
+                    )
+                    
+                    # Cambiar estado a esperando confirmación de otra consulta
+                    state["stage"] = "awaiting_another_question"
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+                else:
+                    respuesta = "Servicio no encontrado. Por favor, elige una opción válida."
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+            
             elif chosen_key in menus:  # Es otro menú intermedio
                 state["stage"] = chosen_key
                 respuesta = menus[chosen_key]["text"]
@@ -257,6 +389,20 @@ async def tilin_chatbot(req: Request):
                     user_id=str(chat_id),
                     respuesta=respuesta,
                     menu_actual=chosen_key,
+                    estado_actual=state.copy()
+                )
+                
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            elif chosen_key == "tramite":  # Opción de búsqueda de trámite específico
+                state["stage"] = "awaiting_tramite_query"
+                respuesta = "Por favor, describe qué tipo de trámite o servicio estás buscando. Por ejemplo: 'multas electorales', 'afiliación a partidos', 'certificados', etc."
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="servicios_digitales",
                     estado_actual=state.copy()
                 )
                 
@@ -327,6 +473,98 @@ async def tilin_chatbot(req: Request):
             user_states[chat_id] = {"stage": "main", "flow": []}
             await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta_error})
             return {"reply": respuesta_error}
+
+    # Si el usuario está consultando por un trámite específico
+    if state["stage"] == "awaiting_tramite_query":
+        try:
+            # Buscar servicios relevantes usando búsqueda semántica
+            servicios_encontrados = buscar_servicios_semanticamente(text, top_k=5)
+            
+            if servicios_encontrados:
+                # Guardar servicios encontrados en el estado
+                state["servicios_encontrados"] = servicios_encontrados
+                state["stage"] = "awaiting_tramite_selection"
+                
+                # Generar menú con servicios encontrados
+                respuesta = generar_menu_servicios_busqueda(servicios_encontrados)
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="servicios_digitales",
+                    estado_actual=state.copy()
+                )
+                
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            else:
+                respuesta = "No se encontraron servicios relevantes para tu consulta. Por favor, intenta con otros términos o vuelve al menú principal."
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="servicios_digitales",
+                    estado_actual=state.copy()
+                )
+                
+                # Reiniciar flujo
+                user_states[chat_id] = {"stage": "main", "flow": []}
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+                
+        except Exception as e:
+            error_msg = f"Error en búsqueda de trámites: {str(e)}"
+            respuesta_error = "Lo siento, ha ocurrido un error al buscar trámites. Por favor, intenta de nuevo."
+            
+            # Agregar respuesta del bot a la conversación
+            chat_memory.agregar_respuesta_bot(
+                user_id=str(chat_id),
+                respuesta=respuesta_error,
+                menu_actual="servicios_digitales",
+                estado_actual=state.copy()
+            )
+            
+            # Reiniciar flujo
+            user_states[chat_id] = {"stage": "main", "flow": []}
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta_error})
+            return {"reply": respuesta_error}
+
+    # Si el usuario está seleccionando un trámite de la búsqueda
+    if state["stage"] == "awaiting_tramite_selection":
+        # Verificar si la opción seleccionada es válida
+        if "servicios_encontrados" in state and text.isdigit():
+            opcion = int(text)
+            servicios_encontrados = state["servicios_encontrados"]
+            
+            if 1 <= opcion <= len(servicios_encontrados):
+                servicio = servicios_encontrados[opcion - 1]
+                respuesta = f"📋 **{servicio['nombre']}**\n\n"
+                respuesta += f"📝 **Descripción:** {servicio['descripcion']}\n\n"
+                respuesta += f"🔗 **Enlace:** {servicio['enlace']}\n\n"
+                respuesta += "¿Tienes otra consulta? (responde 'si' o 'no'):"
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="servicios_digitales",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            else:
+                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(servicios_encontrados)}."
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+        else:
+            respuesta = "Por favor, elige una opción válida del menú."
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
 
     # Si el usuario está confirmando si tiene otra consulta
     if state["stage"] == "awaiting_another_question":
@@ -525,6 +763,27 @@ async def ver_servicios_disponibles():
     return {
         "total_servicios": len(servicios_digitales),
         "servicios": servicios_digitales
+    }
+
+# Comando para recargar servicios de búsqueda
+@router.post("/recargar-servicios-busqueda")
+async def recargar_servicios_busqueda():
+    global servicios_busqueda
+    
+    # Recargar servicios desde CSV
+    servicios_busqueda = cargar_servicios_busqueda()
+    
+    return {
+        "reply": f"Servicios de búsqueda recargados: {len(servicios_busqueda)} servicios disponibles",
+        "servicios_cargados": len(servicios_busqueda)
+    }
+
+# Comando para ver servicios de búsqueda disponibles
+@router.get("/servicios-busqueda")
+async def ver_servicios_busqueda():
+    return {
+        "total_servicios": len(servicios_busqueda),
+        "servicios": servicios_busqueda
     }
 
 # para probar el http de vscode ports con datos móviles de mi celular, con wifi NAZCA o ethernet NAZCAG hay firewall :c con https de vscode ports pide loguearse a github e igual no funca desde cliente xd con http y datos móviles si corre bien pero algo más lento, cuando pase a qa pedirle a infra que le dé un dominio y reemplazarlo en el webhook de telegram

@@ -6,6 +6,7 @@ from chatbot.services.db_logger import log_message
 from chatbot.services.chat_memory_manager import ChatMemoryManager
 from chatbot.services.servicios_digitales_manager import ServiciosDigitalesManager
 from chatbot.services.informacion_institucional_manager import InformacionInstitucionalManager
+from chatbot.services.procesos_electorales_manager import ProcesosElectoralesManager
 
 router = APIRouter()
 
@@ -39,6 +40,16 @@ def get_info_institucional_manager():
         _info_institucional_manager = InformacionInstitucionalManager()
     return _info_institucional_manager
 
+# Inicializar el gestor de procesos electorales (se creará cuando se necesite)
+_procesos_electorales_manager = None
+
+def get_procesos_electorales_manager():
+    """Obtiene la instancia de ProcesosElectoralesManager, creándola si es necesario"""
+    global _procesos_electorales_manager
+    if _procesos_electorales_manager is None:
+        _procesos_electorales_manager = ProcesosElectoralesManager()
+    return _procesos_electorales_manager
+
 import os
 import httpx
 
@@ -63,13 +74,17 @@ user_states: Dict[int, dict] = {}
 # Definición de menús y submenús
 menus = {
     "main": {
-        "text": "Menú principal:\n1. Procesos Electorales\n2. Información Institucional\n3. Servicios Digitales",
-        "options": {"1": "procesos_electorales", "2": "informacion_institucional", "3": "servicios_digitales"}
+        "text": "Menú principal:\n1. Procesos Electorales\n2. Organizaciones Políticas\n3. Información Institucional\n4. Servicios Digitales",
+        "options": {"1": "procesos_electorales", "2": "organizaciones_politicas", "3": "informacion_institucional", "4": "servicios_digitales"}
     },
     "procesos_electorales": {
-        "text": "Procesos electorales:\n1. Organización Política\n2. Cronograma Electoral\n3. Jurado Especial Electoral\n4. Alianzas Políticas\n5. Afiliados\n6. Personeros\n7. Candidatos\n8. Autoridades Electas",
-        "options": {"1": "organizacion_politica", "2": "cronograma_electoral", "3": "jee", "4": "alianzas_politicas", "5": "afiliados", "6": "personeros", "7": "candidatos", "8": "autoridades_electas"}
+        "text": "Procesos electorales:\n1. Cronograma Electoral\n2. Consulta tu Político",
+        "options": {"1": "cronograma_electoral", "2": "consulta_politico"}
     },    
+    "organizaciones_politicas": {
+        "text": "Organizaciones Políticas:\n1. Tipos de Organizaciones Políticas\n2. Consulta de Afiliación",
+        "options": {"1": "organizacion_politica", "2": "consulta_afiliacion"}
+    },   
     "informacion_institucional": {
         "text": "Información general:\n1. Pleno y Presidencia\n2. Funcionarios\n3. Jurados Electorales Especiales\n4. Sedes",
         "options": {"1": "pleno", "2": "funcionarios", "3": "jee", "4": "sedes"}
@@ -86,7 +101,7 @@ menus = {
 
 # Contexto adicional según el submenú final
 context_map = {
-    "organizacion_politica": "El Partido Aurora Nacional cuenta con presencia en las 25 regiones del país.",
+    #"organizacion_politica": "El Partido Aurora Nacional cuenta con presencia en las 25 regiones del país.",
     "cronograma_electoral": "Las elecciones internas se realizarán el 15 de septiembre y la campaña oficial inicia el 1 de octubre.",
     "jee": "Contamos con jurados especiales en las provincias de Cajamarca, Arequipa, Lima y Trujillo.",
     "alianzas_politicas": "Actualmente tenemos alianza con el Movimiento Verde y la Unión Ciudadana.",
@@ -362,6 +377,69 @@ async def tilin_chatbot(req: Request):
                 state["stage"] = "awaiting_another_question"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
+            elif chosen_key == "organizacion_politica":  # Opción de tipos de organizaciones políticas
+                procesos_manager = get_procesos_electorales_manager()
+                respuesta = procesos_manager.obtener_tipos_organizaciones_politicas() + "\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="procesos_electorales",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            elif chosen_key == "consulta_afiliacion":  # Opción de consulta de afiliación
+                procesos_manager = get_procesos_electorales_manager()
+                respuesta = procesos_manager.obtener_consulta_afiliacion() + "\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="procesos_electorales",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            elif chosen_key == "cronograma_electoral":  # Opción de cronograma electoral
+                procesos_manager = get_procesos_electorales_manager()
+                respuesta = procesos_manager.generar_menu_cronograma_electoral()
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="cronograma_electoral",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperar selección de proceso electoral
+                state["stage"] = "awaiting_proceso_electoral"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            elif chosen_key == "consulta_politico":  # Opción de consulta de político
+                respuesta = "👤 **Consulta tu Político**\n\nPor favor, proporciona el nombre del político que deseas consultar (mínimo 1 nombre y 1 apellido):"
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="consulta_politico",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperar datos del político
+                state["stage"] = "awaiting_politico_nombres"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
             else:  # Es un submenú final, ahora esperamos la pregunta
                 state["stage"] = "awaiting_question"
                 state["final_choice"] = chosen_key
@@ -573,6 +651,237 @@ async def tilin_chatbot(req: Request):
                 return {"reply": respuesta}
         else:
             respuesta = "Por favor, elige una opción válida del menú del pleno."
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+
+    # Si el usuario está seleccionando un proceso electoral
+    if state["stage"] == "awaiting_proceso_electoral":
+        if text.isdigit():
+            opcion = int(text)
+            procesos_manager = get_procesos_electorales_manager()
+            procesos = procesos_manager.obtener_procesos_electorales()
+            
+            if 1 <= opcion <= len(procesos):
+                proceso_seleccionado = procesos[opcion - 1]
+                state["proceso_electoral"] = proceso_seleccionado
+                state["stage"] = "awaiting_hito_consulta"
+                
+                respuesta = f"📅 Has seleccionado: **{proceso_seleccionado}**\n\n¿Qué hitos electorales deseas consultar? Por ejemplo: 'elecciones', 'votación', 'inscripción', etc."
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="cronograma_electoral",
+                    estado_actual=state.copy()
+                )
+                
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            else:
+                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(procesos)}."
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+        else:
+            respuesta = "Por favor, elige una opción válida del menú de procesos electorales."
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+
+    # Si el usuario está consultando hitos electorales
+    if state["stage"] == "awaiting_hito_consulta":
+        try:
+            procesos_manager = get_procesos_electorales_manager()
+            proceso_electoral = state.get("proceso_electoral")
+            
+            if not proceso_electoral:
+                respuesta = "Error: No se encontró el proceso electoral seleccionado. Por favor, vuelve al menú principal."
+                state["stage"] = "main"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            
+            # Buscar hitos electorales
+            hitos = procesos_manager.buscar_hitos_electorales(proceso_electoral, text)
+            
+            if hitos:
+                state["hitos_encontrados"] = hitos
+                state["stage"] = "awaiting_hito_selection"
+                
+                respuesta = procesos_manager.generar_menu_hitos(hitos)
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="cronograma_electoral",
+                    estado_actual=state.copy()
+                )
+                
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            else:
+                respuesta = "No se encontraron hitos electorales que coincidan con tu consulta. Por favor, intenta con otros términos."
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="cronograma_electoral",
+                    estado_actual=state.copy()
+                )
+                
+                # Reiniciar flujo
+                user_states[chat_id] = {"stage": "main", "flow": []}
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+                
+        except Exception as e:
+            respuesta = "Error al buscar hitos electorales. Por favor, intenta de nuevo."
+            user_states[chat_id] = {"stage": "main", "flow": []}
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+
+    # Si el usuario está seleccionando un hito electoral
+    if state["stage"] == "awaiting_hito_selection":
+        if text.isdigit():
+            opcion = int(text)
+            hitos = state.get("hitos_encontrados", [])
+            
+            if 1 <= opcion <= len(hitos):
+                hito_seleccionado = hitos[opcion - 1]
+                procesos_manager = get_procesos_electorales_manager()
+                respuesta = procesos_manager.formatear_hito_electoral(hito_seleccionado)
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="cronograma_electoral",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            else:
+                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(hitos)}."
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+        else:
+            respuesta = "Por favor, elige una opción válida del menú de hitos electorales."
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+
+    # Si el usuario está proporcionando nombres del político
+    if state["stage"] == "awaiting_politico_nombres":
+        # Separar nombres y apellidos
+        palabras = text.strip().split()
+        
+        if len(palabras) < 2:
+            respuesta = "Por favor, proporciona al menos un nombre y un apellido del político que deseas consultar."
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+        
+        # Asumir que la primera palabra es nombre y la segunda es apellido
+        nombres = palabras[0]
+        apellidos = palabras[1] if len(palabras) > 1 else ""
+        
+        procesos_manager = get_procesos_electorales_manager()
+        politicos = procesos_manager.buscar_politicos(nombres, apellidos)
+        
+        if len(politicos) > 10:
+            # Pedir segundo apellido
+            state["nombres_politico"] = nombres
+            state["primer_apellido"] = apellidos
+            state["stage"] = "awaiting_politico_segundo_apellido"
+            
+            respuesta = f"Se encontraron {len(politicos)} políticos. Por favor, proporciona un segundo apellido para refinar la búsqueda."
+            
+            # Agregar respuesta del bot a la conversación
+            chat_memory.agregar_respuesta_bot(
+                user_id=str(chat_id),
+                respuesta=respuesta,
+                menu_actual="consulta_politico",
+                estado_actual=state.copy()
+            )
+            
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+        else:
+            # Mostrar resultados
+            state["politicos_encontrados"] = politicos
+            state["stage"] = "awaiting_politico_selection"
+            
+            respuesta = procesos_manager.generar_menu_politicos(politicos)
+            
+            # Agregar respuesta del bot a la conversación
+            chat_memory.agregar_respuesta_bot(
+                user_id=str(chat_id),
+                respuesta=respuesta,
+                menu_actual="consulta_politico",
+                estado_actual=state.copy()
+            )
+            
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+
+    # Si el usuario está proporcionando segundo apellido del político
+    if state["stage"] == "awaiting_politico_segundo_apellido":
+        nombres = state.get("nombres_politico", "")
+        primer_apellido = state.get("primer_apellido", "")
+        segundo_apellido = text.strip()
+        
+        # Combinar apellidos
+        apellidos_completos = f"{primer_apellido} {segundo_apellido}".strip()
+        
+        procesos_manager = get_procesos_electorales_manager()
+        politicos = procesos_manager.buscar_politicos(nombres, apellidos_completos)
+        
+        state["politicos_encontrados"] = politicos
+        state["stage"] = "awaiting_politico_selection"
+        
+        respuesta = procesos_manager.generar_menu_politicos(politicos)
+        
+        # Agregar respuesta del bot a la conversación
+        chat_memory.agregar_respuesta_bot(
+            user_id=str(chat_id),
+            respuesta=respuesta,
+            menu_actual="consulta_politico",
+            estado_actual=state.copy()
+        )
+        
+        await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+        return {"reply": respuesta}
+
+    # Si el usuario está seleccionando un político
+    if state["stage"] == "awaiting_politico_selection":
+        if text.isdigit():
+            opcion = int(text)
+            politicos = state.get("politicos_encontrados", [])
+            
+            if 1 <= opcion <= len(politicos):
+                politico_seleccionado = politicos[opcion - 1]
+                procesos_manager = get_procesos_electorales_manager()
+                respuesta = procesos_manager.formatear_politico(politico_seleccionado)
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="consulta_politico",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            else:
+                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(politicos)}."
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+        else:
+            respuesta = "Por favor, elige una opción válida del menú de políticos."
             await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
             return {"reply": respuesta}
 
@@ -837,6 +1146,84 @@ async def obtener_estadisticas_institucional():
     return {
         "estadisticas": info_manager.obtener_estadisticas(),
         "miembros_pleno": info_manager.pleno_miembros
+    }
+
+# Comando para obtener estadísticas de procesos electorales
+@router.get("/estadisticas-procesos-electorales")
+async def obtener_estadisticas_procesos_electorales():
+    procesos_manager = get_procesos_electorales_manager()
+    return {
+        "estadisticas": procesos_manager.obtener_estadisticas()
+    }
+
+# Comando para recargar datos de procesos electorales
+@router.post("/recargar-procesos-electorales")
+async def recargar_procesos_electorales():
+    procesos_manager = get_procesos_electorales_manager()
+    resultado = procesos_manager.recargar_datos()
+    
+    return {
+        "reply": resultado,
+        "timestamp": "2025-01-15T10:00:00Z"
+    }
+
+# Comando para obtener reporte de organizaciones políticas
+@router.get("/reporte-organizaciones-politicas")
+async def obtener_reporte_organizaciones_politicas():
+    procesos_manager = get_procesos_electorales_manager()
+    reporte = procesos_manager.obtener_tipos_organizaciones_politicas()
+    
+    return {
+        "reporte": reporte,
+        "timestamp": "2025-01-15T10:00:00Z"
+    }
+
+# Comando para obtener procesos electorales disponibles
+@router.get("/procesos-electorales")
+async def obtener_procesos_electorales():
+    procesos_manager = get_procesos_electorales_manager()
+    procesos = procesos_manager.obtener_procesos_electorales()
+    
+    return {
+        "procesos": procesos,
+        "total": len(procesos),
+        "timestamp": "2025-01-15T10:00:00Z"
+    }
+
+# Comando para buscar hitos electorales
+@router.post("/buscar-hitos-electorales")
+async def buscar_hitos_electorales(req: Request):
+    body = await req.json()
+    proceso_electoral = body.get("proceso_electoral", "")
+    consulta = body.get("consulta", "")
+    
+    procesos_manager = get_procesos_electorales_manager()
+    hitos = procesos_manager.buscar_hitos_electorales(proceso_electoral, consulta)
+    
+    return {
+        "hitos": hitos,
+        "total": len(hitos),
+        "proceso_electoral": proceso_electoral,
+        "consulta": consulta,
+        "timestamp": "2025-01-15T10:00:00Z"
+    }
+
+# Comando para buscar políticos
+@router.post("/buscar-politicos")
+async def buscar_politicos(req: Request):
+    body = await req.json()
+    nombres = body.get("nombres", "")
+    apellidos = body.get("apellidos", "")
+    
+    procesos_manager = get_procesos_electorales_manager()
+    politicos = procesos_manager.buscar_politicos(nombres, apellidos)
+    
+    return {
+        "politicos": politicos,
+        "total": len(politicos),
+        "nombres": nombres,
+        "apellidos": apellidos,
+        "timestamp": "2025-01-15T10:00:00Z"
     }
 
 # para probar el http de vscode ports con datos móviles de mi celular, con wifi NAZCA o ethernet NAZCAG hay firewall :c con https de vscode ports pide loguearse a github e igual no funca desde cliente xd con http y datos móviles si corre bien pero algo más lento, cuando pase a qa pedirle a infra que le dé un dominio y reemplazarlo en el webhook de telegram

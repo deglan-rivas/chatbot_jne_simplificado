@@ -21,6 +21,12 @@ class Settings:
     REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
     REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
     
+    # Configuración de Oracle Database
+    ORACLE_USER: str = os.getenv("ORACLE_USER", "eleccia")
+    ORACLE_PASS: str = os.getenv("ORACLE_PASS", "desarrollo")
+    ORACLE_DSN: str = os.getenv("ORACLE_DSN", "oda-x8-2ha-vm1:1521/OPEXTDESA")
+    ORACLE_SCHEMA: str = "ELECCIA"
+    
     @property
     def DB_URL(self) -> str:
         """Construye la URL de conexión a PostgreSQL"""
@@ -33,5 +39,10 @@ class Settings:
             return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         else:
             return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+    
+    @property
+    def ORACLE_URL(self) -> str:
+        """Construye la URL de conexión a Oracle"""
+        return f"oracle+oracledb://{self.ORACLE_USER}:{self.ORACLE_PASS}@{self.ORACLE_DSN}"
 
 settings = Settings()

@@ -8,8 +8,10 @@ app = FastAPI(title="Chatbot JNE Simplificado")
 @app.on_event("startup")
 async def startup_event():
     print("🚀 Inicializando conexiones de base de datos...")
+    
+    # Inicializar PostgreSQL y Redis
     inicializar_conexiones()
-    print("✅ Conexiones inicializadas")
+    print("✅ Conexiones PostgreSQL y Redis inicializadas")
     
     # Verificar que Redis esté funcionando
     try:

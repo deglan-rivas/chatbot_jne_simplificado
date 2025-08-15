@@ -130,9 +130,41 @@ class OracleRepository:
             logger.error(f"❌ Error al obtener procesos electorales: {e}")
             return []
     
+    def obtener_hitos_electorales_por_proceso(self, proceso_electoral: str) -> list:
+        """
+        Obtiene todos los hitos electorales de un proceso específico
+        """
+        try:
+            for session in get_db():
+                result = session.query(CronogramaElectoral).filter(
+                    CronogramaElectoral.PROCESO_ELECTORAL == proceso_electoral
+                ).order_by(
+                    CronogramaElectoral.ANIO,
+                    CronogramaElectoral.MES,
+                    CronogramaElectoral.DIA
+                ).all()
+                
+                hitos = []
+                for row in result:
+                    hitos.append({
+                        "proceso_electoral": row.PROCESO_ELECTORAL,
+                        "anio": row.ANIO,
+                        "mes": row.MES,
+                        "dia": row.DIA,
+                        "hito_electoral": row.HITO_ELECTORAL
+                    })
+                
+                logger.info(f"✅ Hitos electorales obtenidos para {proceso_electoral}: {len(hitos)} hitos")
+                return hitos
+                
+        except Exception as e:
+            logger.error(f"❌ Error al obtener hitos electorales: {e}")
+            return []
+    
     def buscar_hitos_electorales(self, proceso_electoral: str, consulta: str) -> list:
         """
         Busca hitos electorales por proceso electoral y consulta del usuario
+        (Método legacy - mantenido por compatibilidad)
         """
         try:
             for session in get_db():
@@ -208,6 +240,184 @@ class OracleRepository:
         except Exception as e:
             logger.error(f"❌ Error al buscar políticos: {e}")
             return []
+    
+    def obtener_elecciones_disponibles(self) -> list:
+        """
+        Obtiene la lista de elecciones disponibles para consulta de políticos
+        """
+        try:
+            for session in get_db():
+                result = session.query(
+                    Politico.TXELECCION
+                ).distinct().order_by(Politico.TXELECCION).all()
+                
+                elecciones = [row.TXELECCION for row in result if row.TXELECCION]
+                logger.info(f"✅ Elecciones disponibles obtenidas: {len(elecciones)} elecciones")
+                return elecciones
+                
+        except Exception as e:
+            logger.error(f"❌ Error al obtener elecciones disponibles: {e}")
+            return []
+    
+    def buscar_politicos_por_eleccion(self, eleccion: str, nombres: str = "", apellidos: str = "") -> list:
+        """
+        Busca políticos por elección específica y opcionalmente por nombres/apellidos
+        """
+        try:
+            for session in get_db():
+                query = session.query(Politico).filter(
+                    Politico.TXELECCION == eleccion
+                )
+                
+                # Filtrar por nombres si se proporcionan
+                if nombres:
+                    query = query.filter(Politico.TXNOMBRE.ilike(f"%{nombres}%"))
+                
+                # Filtrar por apellidos si se proporcionan
+                if apellidos:
+                    query = query.filter(
+                        (Politico.TXAPEPAT.ilike(f"%{apellidos}%")) |
+                        (Politico.TXAPEMAT.ilike(f"%{apellidos}%"))
+                    )
+                
+                result = query.order_by(
+                    Politico.TXNOMBRE,
+                    Politico.TXAPEPAT,
+                    Politico.TXAPEMAT
+                ).all()
+                
+                politicos = []
+                for row in result:
+                    politicos.append({
+                        "nombres": row.TXNOMBRE,
+                        "apellido_paterno": row.TXAPEPAT,
+                        "apellido_materno": row.TXAPEMAT,
+                        "region": row.TXREGION,
+                        "provincia": row.TXPROVINCIA,
+                        "distrito": row.TXDISTRITO,
+                        "organizacion_politica": row.TXORGPOL,
+                        "eleccion": row.TXELECCION,
+                        "siglas": row.TXSIGLAS,
+                        "tipo_eleccion": row.TXTIPOELECCION,
+                        "cargo_postulado": row.TXCARGO,
+                        "cargo_electo": row.TXCARGOELECTO
+                    })
+                
+                logger.info(f"✅ Políticos encontrados por elección: {len(politicos)} políticos")
+                return politicos
+                
+        except Exception as e:
+            logger.error(f"❌ Error al buscar políticos por elección: {e}")
+            return []
+    
+    def buscar_candidatos_unicos(self, nombres: str, apellidos: str = "") -> list:
+        """
+        Busca candidatos únicos por nombres y apellidos (sin repetir nombres)
+        """
+        try:
+            for session in get_db():
+                query = session.query(Politico)
+                
+                # Filtrar por nombres
+                if nombres:
+                    query = query.filter(Politico.TXNOMBRE.ilike(f"%{nombres}%"))
+                
+                # Filtrar por apellidos si se proporcionan
+                if apellidos:
+                    query = query.filter(
+                        (Politico.TXAPEPAT.ilike(f"%{apellidos}%")) |
+                        (Politico.TXAPEMAT.ilike(f"%{apellidos}%"))
+                    )
+                
+                # Obtener candidatos únicos (sin repetir nombres completos)
+                result = session.query(
+                    Politico.TXNOMBRE,
+                    Politico.TXAPEPAT,
+                    Politico.TXAPEMAT
+                ).filter(
+                    query.whereclause
+                ).distinct().order_by(
+                    Politico.TXNOMBRE,
+                    Politico.TXAPEPAT,
+                    Politico.TXAPEMAT
+                ).all()
+                
+                candidatos = []
+                for row in result:
+                    candidatos.append({
+                        "nombres": row.TXNOMBRE,
+                        "apellido_paterno": row.TXAPEPAT,
+                        "apellido_materno": row.TXAPEMAT,
+                        "nombre_completo": f"{row.TXNOMBRE} {row.TXAPEPAT} {row.TXAPEMAT}".strip()
+                    })
+                
+                logger.info(f"✅ Candidatos únicos encontrados: {len(candidatos)} candidatos")
+                return candidatos
+                
+        except Exception as e:
+            logger.error(f"❌ Error al buscar candidatos únicos: {e}")
+            return []
+    
+    def obtener_elecciones_por_candidato(self, nombres: str, apellido_paterno: str, apellido_materno: str) -> list:
+        """
+        Obtiene todas las elecciones donde aparece un candidato específico
+        """
+        try:
+            for session in get_db():
+                result = session.query(
+                    Politico.TXELECCION
+                ).filter(
+                    Politico.TXNOMBRE == nombres,
+                    Politico.TXAPEPAT == apellido_paterno,
+                    Politico.TXAPEMAT == apellido_materno
+                ).distinct().order_by(Politico.TXELECCION).all()
+                
+                elecciones = [row.TXELECCION for row in result if row.TXELECCION]
+                logger.info(f"✅ Elecciones encontradas para candidato: {len(elecciones)} elecciones")
+                return elecciones
+                
+        except Exception as e:
+            logger.error(f"❌ Error al obtener elecciones por candidato: {e}")
+            return []
+    
+    def obtener_detalle_candidato_eleccion(self, nombres: str, apellido_paterno: str, apellido_materno: str, eleccion: str) -> dict:
+        """
+        Obtiene el detalle completo de un candidato en una elección específica
+        """
+        try:
+            for session in get_db():
+                result = session.query(Politico).filter(
+                    Politico.TXNOMBRE == nombres,
+                    Politico.TXAPEPAT == apellido_paterno,
+                    Politico.TXAPEMAT == apellido_materno,
+                    Politico.TXELECCION == eleccion
+                ).first()
+                
+                if result:
+                    detalle = {
+                        "nombres": result.TXNOMBRE,
+                        "apellido_paterno": result.TXAPEPAT,
+                        "apellido_materno": result.TXAPEMAT,
+                        "region": result.TXREGION,
+                        "provincia": result.TXPROVINCIA,
+                        "distrito": result.TXDISTRITO,
+                        "organizacion_politica": result.TXORGPOL,
+                        "eleccion": result.TXELECCION,
+                        "siglas": result.TXSIGLAS,
+                        "tipo_eleccion": result.TXTIPOELECCION,
+                        "cargo_postulado": result.TXCARGO,
+                        "cargo_electo": result.TXCARGOELECTO
+                    }
+                    
+                    logger.info(f"✅ Detalle de candidato obtenido para {eleccion}")
+                    return detalle
+                else:
+                    logger.warning(f"⚠️ No se encontró detalle para el candidato en {eleccion}")
+                    return {}
+                
+        except Exception as e:
+            logger.error(f"❌ Error al obtener detalle de candidato: {e}")
+            return {}
     
     def probar_conexion(self) -> bool:
         """

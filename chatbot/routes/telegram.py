@@ -224,6 +224,7 @@ async def tilin_chatbot(req: Request):
                     
                     # Cambiar estado a esperando confirmación de otra consulta
                     state["stage"] = "awaiting_another_question"
+                    state["final_choice"] = "servicio_principal"
                     await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                     return {"reply": respuesta}
                 else:
@@ -253,6 +254,7 @@ async def tilin_chatbot(req: Request):
                     
                     # Cambiar estado a esperando confirmación de otra consulta
                     state["stage"] = "awaiting_another_question"
+                    state["final_choice"] = "pleno_miembro"
                     await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                     return {"reply": respuesta}
                 else:
@@ -281,6 +283,7 @@ async def tilin_chatbot(req: Request):
                     
                     # Cambiar estado a esperando confirmación de otra consulta
                     state["stage"] = "awaiting_another_question"
+                    state["final_choice"] = "busqueda_semantica"
                     await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                     return {"reply": respuesta}
                 else:
@@ -343,6 +346,7 @@ async def tilin_chatbot(req: Request):
                 
                 # Cambiar estado a esperando confirmación de otra consulta
                 state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "funcionarios"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             elif chosen_key == "jee":  # Opción de JEE
@@ -359,6 +363,7 @@ async def tilin_chatbot(req: Request):
                 
                 # Cambiar estado a esperando confirmación de otra consulta
                 state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "jee"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             elif chosen_key == "sedes":  # Opción de sedes
@@ -375,6 +380,7 @@ async def tilin_chatbot(req: Request):
                 
                 # Cambiar estado a esperando confirmación de otra consulta
                 state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "sedes"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             elif chosen_key == "organizacion_politica":  # Opción de tipos de organizaciones políticas
@@ -391,6 +397,7 @@ async def tilin_chatbot(req: Request):
                 
                 # Cambiar estado a esperando confirmación de otra consulta
                 state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "organizacion_politica"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             elif chosen_key == "consulta_afiliacion":  # Opción de consulta de afiliación
@@ -407,6 +414,7 @@ async def tilin_chatbot(req: Request):
                 
                 # Cambiar estado a esperando confirmación de otra consulta
                 state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "consulta_afiliacion"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             elif chosen_key == "cronograma_electoral":  # Opción de cronograma electoral
@@ -488,7 +496,7 @@ async def tilin_chatbot(req: Request):
             await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
             return {"reply": respuesta}
 
-    # Si el usuario ya eligió submenú y está enviando pregunta
+        # Si el usuario ya eligió submenú y está enviando pregunta
     if state["stage"] == "awaiting_question":
         try:
             context = context_map.get(state["final_choice"], "")
@@ -607,6 +615,7 @@ async def tilin_chatbot(req: Request):
                 
                 # Cambiar estado a esperando confirmación de otra consulta
                 state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "tramite_seleccion"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             else:
@@ -643,6 +652,7 @@ async def tilin_chatbot(req: Request):
                 
                 # Cambiar estado a esperando confirmación de otra consulta
                 state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "pleno_seleccion"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             else:
@@ -661,7 +671,25 @@ async def tilin_chatbot(req: Request):
             procesos_manager = get_procesos_electorales_manager()
             procesos = procesos_manager.obtener_procesos_electorales()
             
-            if 1 <= opcion <= len(procesos):
+            # Verificar si es la opción "Otros procesos electorales"
+            if opcion == len(procesos) + 1:
+                respuesta = procesos_manager.obtener_otros_procesos_electorales()
+                
+                # Agregar respuesta del bot a la conversación
+                chat_memory.agregar_respuesta_bot(
+                    user_id=str(chat_id),
+                    respuesta=respuesta,
+                    menu_actual="cronograma_electoral",
+                    estado_actual=state.copy()
+                )
+                
+                # Cambiar estado a esperando confirmación de otra consulta
+                state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "otros_procesos_electorales"
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+            
+            elif 1 <= opcion <= len(procesos):
                 proceso_seleccionado = procesos[opcion - 1]
                 state["proceso_electoral"] = proceso_seleccionado
                 state["stage"] = "awaiting_hito_consulta"
@@ -679,7 +707,7 @@ async def tilin_chatbot(req: Request):
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             else:
-                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(procesos)}."
+                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(procesos) + 1}."
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
         else:
@@ -699,8 +727,8 @@ async def tilin_chatbot(req: Request):
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             
-            # Buscar hitos electorales
-            hitos = procesos_manager.buscar_hitos_electorales(proceso_electoral, text)
+            # Buscar hitos electorales usando búsqueda semántica con LLM
+            hitos = procesos_manager.buscar_hitos_electorales_semanticamente(proceso_electoral, text)
             
             if hitos:
                 state["hitos_encontrados"] = hitos
@@ -761,6 +789,7 @@ async def tilin_chatbot(req: Request):
                 
                 # Cambiar estado a esperando confirmación de otra consulta
                 state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "hito_electoral"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             else:
@@ -771,6 +800,8 @@ async def tilin_chatbot(req: Request):
             respuesta = "Por favor, elige una opción válida del menú de hitos electorales."
             await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
             return {"reply": respuesta}
+
+
 
     # Si el usuario está proporcionando nombres del político
     if state["stage"] == "awaiting_politico_nombres":
@@ -787,15 +818,17 @@ async def tilin_chatbot(req: Request):
         apellidos = palabras[1] if len(palabras) > 1 else ""
         
         procesos_manager = get_procesos_electorales_manager()
-        politicos = procesos_manager.buscar_politicos(nombres, apellidos)
         
-        if len(politicos) > 10:
+        # Buscar candidatos únicos (sin repetir nombres)
+        candidatos = procesos_manager.buscar_candidatos_unicos(nombres, apellidos)
+        
+        if len(candidatos) > 10:
             # Pedir segundo apellido
             state["nombres_politico"] = nombres
             state["primer_apellido"] = apellidos
             state["stage"] = "awaiting_politico_segundo_apellido"
             
-            respuesta = f"Se encontraron {len(politicos)} políticos. Por favor, proporciona un segundo apellido para refinar la búsqueda."
+            respuesta = f"Se encontraron {len(candidatos)} candidatos. Por favor, proporciona un segundo apellido para refinar la búsqueda."
             
             # Agregar respuesta del bot a la conversación
             chat_memory.agregar_respuesta_bot(
@@ -809,10 +842,10 @@ async def tilin_chatbot(req: Request):
             return {"reply": respuesta}
         else:
             # Mostrar resultados
-            state["politicos_encontrados"] = politicos
-            state["stage"] = "awaiting_politico_selection"
+            state["candidatos_encontrados"] = candidatos
+            state["stage"] = "awaiting_candidato_selection"
             
-            respuesta = procesos_manager.generar_menu_politicos(politicos)
+            respuesta = procesos_manager.generar_menu_candidatos(candidatos)
             
             # Agregar respuesta del bot a la conversación
             chat_memory.agregar_respuesta_bot(
@@ -835,12 +868,14 @@ async def tilin_chatbot(req: Request):
         apellidos_completos = f"{primer_apellido} {segundo_apellido}".strip()
         
         procesos_manager = get_procesos_electorales_manager()
-        politicos = procesos_manager.buscar_politicos(nombres, apellidos_completos)
         
-        state["politicos_encontrados"] = politicos
-        state["stage"] = "awaiting_politico_selection"
+        # Buscar candidatos únicos con apellidos completos
+        candidatos = procesos_manager.buscar_candidatos_unicos(nombres, apellidos_completos)
         
-        respuesta = procesos_manager.generar_menu_politicos(politicos)
+        state["candidatos_encontrados"] = candidatos
+        state["stage"] = "awaiting_candidato_selection"
+        
+        respuesta = procesos_manager.generar_menu_candidatos(candidatos)
         
         # Agregar respuesta del bot a la conversación
         chat_memory.agregar_respuesta_bot(
@@ -853,7 +888,126 @@ async def tilin_chatbot(req: Request):
         await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
         return {"reply": respuesta}
 
-    # Si el usuario está seleccionando un político
+    # Si el usuario está seleccionando un candidato
+    if state["stage"] == "awaiting_candidato_selection":
+        if text.isdigit():
+            opcion = int(text)
+            candidatos = state.get("candidatos_encontrados", [])
+            
+            if 1 <= opcion <= len(candidatos):
+                candidato_seleccionado = candidatos[opcion - 1]
+                
+                # Obtener elecciones donde aparece este candidato
+                procesos_manager = get_procesos_electorales_manager()
+                elecciones = procesos_manager.obtener_elecciones_por_candidato(
+                    candidato_seleccionado["nombres"],
+                    candidato_seleccionado["apellido_paterno"],
+                    candidato_seleccionado["apellido_materno"]
+                )
+                
+                if elecciones:
+                    state["candidato_seleccionado"] = candidato_seleccionado
+                    state["elecciones_candidato"] = elecciones
+                    state["stage"] = "awaiting_eleccion_candidato_selection"
+                    
+                    respuesta = procesos_manager.generar_menu_elecciones_candidato(
+                        elecciones, 
+                        candidato_seleccionado["nombre_completo"]
+                    )
+                    
+                    # Agregar respuesta del bot a la conversación
+                    chat_memory.agregar_respuesta_bot(
+                        user_id=str(chat_id),
+                        respuesta=respuesta,
+                        menu_actual="consulta_politico",
+                        estado_actual=state.copy()
+                    )
+                    
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+                else:
+                    respuesta = f"No se encontraron elecciones para {candidato_seleccionado['nombre_completo']}."
+                    
+                    # Agregar respuesta del bot a la conversación
+                    chat_memory.agregar_respuesta_bot(
+                        user_id=str(chat_id),
+                        respuesta=respuesta,
+                        menu_actual="consulta_politico",
+                        estado_actual=state.copy()
+                    )
+                    
+                    # Reiniciar flujo
+                    user_states[chat_id] = {"stage": "main", "flow": []}
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+            else:
+                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(candidatos)}."
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+        else:
+            respuesta = "Por favor, elige una opción válida del menú de candidatos."
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+
+    # Si el usuario está seleccionando una elección para un candidato
+    if state["stage"] == "awaiting_eleccion_candidato_selection":
+        if text.isdigit():
+            opcion = int(text)
+            elecciones = state.get("elecciones_candidato", [])
+            candidato = state.get("candidato_seleccionado", {})
+            
+            if 1 <= opcion <= len(elecciones):
+                eleccion_seleccionada = elecciones[opcion - 1]
+                
+                # Obtener detalle completo del candidato en esa elección
+                procesos_manager = get_procesos_electorales_manager()
+                detalle = procesos_manager.obtener_detalle_candidato_eleccion(
+                    candidato["nombres"],
+                    candidato["apellido_paterno"],
+                    candidato["apellido_materno"],
+                    eleccion_seleccionada
+                )
+                
+                if detalle:
+                    respuesta = procesos_manager.formatear_politico(detalle)
+                    
+                    # Agregar respuesta del bot a la conversación
+                    chat_memory.agregar_respuesta_bot(
+                        user_id=str(chat_id),
+                        respuesta=respuesta,
+                        menu_actual="consulta_politico",
+                        estado_actual=state.copy()
+                    )
+                    
+                    # Cambiar estado a esperando confirmación de otra consulta
+                    state["stage"] = "awaiting_another_question"
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+                else:
+                    respuesta = f"No se encontró información detallada para {candidato['nombre_completo']} en {eleccion_seleccionada}."
+                    
+                    # Agregar respuesta del bot a la conversación
+                    chat_memory.agregar_respuesta_bot(
+                        user_id=str(chat_id),
+                        respuesta=respuesta,
+                        menu_actual="consulta_politico",
+                        estado_actual=state.copy()
+                    )
+                    
+                    # Reiniciar flujo
+                    user_states[chat_id] = {"stage": "main", "flow": []}
+                    await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                    return {"reply": respuesta}
+            else:
+                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(elecciones)}."
+                await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+                return {"reply": respuesta}
+        else:
+            respuesta = "Por favor, elige una opción válida del menú de elecciones."
+            await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+            return {"reply": respuesta}
+
+    # Si el usuario está seleccionando un político (mantener para compatibilidad)
     if state["stage"] == "awaiting_politico_selection":
         if text.isdigit():
             opcion = int(text)
@@ -874,6 +1028,7 @@ async def tilin_chatbot(req: Request):
                 
                 # Cambiar estado a esperando confirmación de otra consulta
                 state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "politico_seleccion"
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             else:
@@ -935,11 +1090,14 @@ async def tilin_chatbot(req: Request):
             # Respuesta no reconocida, pedir clarificación
             respuesta_clarificacion = "Por favor, responde 'si' o 'no' si tienes otra consulta:"
             
+            # Obtener el menú actual del estado o usar uno por defecto
+            menu_actual = state.get("final_choice", "consulta_general")
+            
             # Agregar respuesta del bot a la conversación
             chat_memory.agregar_respuesta_bot(
                 user_id=str(chat_id),
                 respuesta=respuesta_clarificacion,
-                menu_actual=state["final_choice"],
+                menu_actual=menu_actual,
                 estado_actual=state.copy()
             )
             
@@ -1205,6 +1363,27 @@ async def buscar_hitos_electorales(req: Request):
         "total": len(hitos),
         "proceso_electoral": proceso_electoral,
         "consulta": consulta,
+        "timestamp": "2025-01-15T10:00:00Z"
+    }
+
+# Comando para buscar hitos electorales con búsqueda semántica
+@router.post("/buscar-hitos-semanticamente")
+async def buscar_hitos_semanticamente(req: Request):
+    body = await req.json()
+    proceso_electoral = body.get("proceso_electoral", "")
+    consulta = body.get("consulta", "")
+    top_k = body.get("top_k", 5)
+    
+    procesos_manager = get_procesos_electorales_manager()
+    hitos = procesos_manager.buscar_hitos_electorales_semanticamente(proceso_electoral, consulta, top_k)
+    
+    return {
+        "hitos": hitos,
+        "total": len(hitos),
+        "proceso_electoral": proceso_electoral,
+        "consulta": consulta,
+        "top_k": top_k,
+        "busqueda_semantica": True,
         "timestamp": "2025-01-15T10:00:00Z"
     }
 

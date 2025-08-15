@@ -1,5 +1,7 @@
 from chatbot.database.oracle_repository import OracleRepository
 import logging
+import os
+from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -8,6 +10,8 @@ class ProcesosElectoralesManager:
     
     def __init__(self):
         self.oracle_repo = OracleRepository()
+        # Inicializar cliente LLM
+        self.client = genai.Client()
     
     def obtener_tipos_organizaciones_politicas(self) -> str:
         """
@@ -56,6 +60,9 @@ class ProcesosElectoralesManager:
             for i, proceso in enumerate(procesos, 1):
                 menu += f"{i}. {proceso}\n"
             
+            # Agregar opción final
+            menu += f"{len(procesos) + 1}. Otros procesos electorales\n"
+            
             return menu
             
         except Exception as e:
@@ -71,6 +78,78 @@ class ProcesosElectoralesManager:
         except Exception as e:
             logger.error(f"❌ Error al obtener procesos electorales: {e}")
             return []
+    
+    def buscar_hitos_electorales_semanticamente(self, proceso_electoral: str, consulta_usuario: str, top_k: int = 5) -> list:
+        """
+        Busca hitos electorales usando búsqueda semántica con LLM (similar a servicios digitales)
+        """
+        try:
+            logger.info(f"🔍 Buscando hitos electorales semánticamente para {proceso_electoral} con consulta: {consulta_usuario}")
+            
+            # Obtener todos los hitos del proceso electoral
+            todos_hitos = self.oracle_repo.obtener_hitos_electorales_por_proceso(proceso_electoral)
+            
+            if not todos_hitos:
+                logger.warning(f"No se encontraron hitos para el proceso: {proceso_electoral}")
+                return []
+            
+            # Crear prompt para el LLM (exactamente como servicios digitales)
+            hitos_texto = ""
+            for i, hito in enumerate(todos_hitos):
+                hitos_texto += f"{i+1}. {hito['hito_electoral']}\n"
+            
+            prompt = f"""
+            Eres un asistente experto en procesos electorales del JNE. 
+            
+            El usuario busca: "{consulta_usuario}"
+            
+            IMPORTANTE: Solo hay {len(todos_hitos)} hitos electorales disponibles (numerados del 1 al {len(todos_hitos)}).
+            
+            Analiza los siguientes hitos electorales y selecciona los {top_k} más relevantes para la consulta del usuario.
+            Responde SOLO con los números de los hitos más relevantes, separados por comas.
+            
+            Hitos electorales disponibles:
+            {hitos_texto}
+            
+            Números de hitos más relevantes (solo números del 1 al {len(todos_hitos)}):"""
+            
+            # Usar el LLM para encontrar hitos relevantes
+            response = self.client.models.generate_content(
+                model="gemma-3-27b-it",
+                contents=prompt
+            )
+            
+            # Parsear la respuesta del LLM
+            numeros_texto = response.text.strip()
+            logger.info(f"🤖 Respuesta del LLM: '{numeros_texto}'")
+            numeros = []
+            
+            # Extraer números de la respuesta
+            for parte in numeros_texto.split(','):
+                parte = parte.strip()
+                if parte.isdigit():
+                    numero = int(parte) - 1  # Convertir a índice base 0
+                    if 0 <= numero < len(todos_hitos):
+                        numeros.append(numero)
+                    else:
+                        logger.warning(f"⚠️ Número fuera de rango: {numero} (rango: 0-{len(todos_hitos)-1})")
+                else:
+                    logger.warning(f"⚠️ Parte no numérica: '{parte}'")
+            
+            logger.info(f"📊 Números extraídos: {numeros}")
+            
+            # Obtener los hitos seleccionados
+            hitos_seleccionados = []
+            for numero in numeros[:top_k]:
+                hitos_seleccionados.append(todos_hitos[numero])
+            
+            logger.info(f"✅ Hitos seleccionados semánticamente: {len(hitos_seleccionados)} hitos")
+            return hitos_seleccionados
+            
+        except Exception as e:
+            logger.error(f"❌ Error en búsqueda semántica de hitos: {e}")
+            # Fallback: devolver primeros hitos
+            return todos_hitos[:top_k] if todos_hitos else []
     
     def buscar_hitos_electorales(self, proceso_electoral: str, consulta: str) -> list:
         """
@@ -216,3 +295,141 @@ class ProcesosElectoralesManager:
         except Exception as e:
             logger.error(f"❌ Error al recargar datos: {e}")
             return f"Error al recargar datos: {str(e)}"
+
+    def obtener_otros_procesos_electorales(self) -> str:
+        """
+        Obtiene información sobre otros procesos electorales
+        """
+        try:
+            respuesta = "📋 **Otros Procesos Electorales**\n\n"
+            respuesta += "Para obtener información completa sobre todos los procesos electorales, "
+            respuesta += "incluyendo cronogramas, fechas importantes y detalles específicos, "
+            respuesta += "visita el portal oficial del JNE:\n\n"
+            respuesta += "🔗 **Portal de Procesos Electorales:**\n"
+            respuesta += "https://portal.jne.gob.pe/portal/Pagina/Ver/991/page/Procesos-Electorales\n\n"
+            respuesta += "En este portal encontrarás:\n"
+            respuesta += "• Cronogramas detallados de todos los procesos\n"
+            respuesta += "• Fechas importantes y hitos electorales\n"
+            respuesta += "• Información actualizada sobre elecciones\n"
+            respuesta += "• Documentación oficial del JNE\n\n"
+            respuesta += "¿Tienes otra consulta? (responde 'si' o 'no'):"
+            
+            return respuesta
+            
+        except Exception as e:
+            logger.error(f"❌ Error al obtener otros procesos electorales: {e}")
+            return "Error al obtener información de otros procesos electorales. Por favor, intente más tarde."
+
+    def obtener_elecciones_disponibles(self) -> list:
+        """
+        Obtiene la lista de elecciones disponibles para consulta de políticos
+        """
+        try:
+            logger.info("🗳️ Obteniendo elecciones disponibles...")
+            elecciones = self.oracle_repo.obtener_elecciones_disponibles()
+            logger.info(f"✅ Elecciones obtenidas: {len(elecciones)} elecciones")
+            return elecciones
+        except Exception as e:
+            logger.error(f"❌ Error al obtener elecciones: {e}")
+            return []
+    
+    def generar_menu_elecciones(self) -> str:
+        """
+        Genera el menú de elecciones disponibles
+        """
+        try:
+            elecciones = self.obtener_elecciones_disponibles()
+            
+            if not elecciones:
+                return "No se encontraron elecciones disponibles en este momento."
+            
+            menu = "🗳️ **Elecciones Disponibles**\n\nSelecciona la elección para consultar políticos:\n\n"
+            
+            for i, eleccion in enumerate(elecciones, 1):
+                menu += f"{i}. {eleccion}\n"
+            
+            return menu
+            
+        except Exception as e:
+            logger.error(f"❌ Error al generar menú de elecciones: {e}")
+            return "Error al obtener elecciones disponibles. Por favor, intente más tarde."
+    
+    def buscar_politicos_por_eleccion(self, eleccion: str, nombres: str = "", apellidos: str = "") -> list:
+        """
+        Busca políticos por elección específica y opcionalmente por nombres/apellidos
+        """
+        try:
+            logger.info(f"👤 Buscando políticos por elección: {eleccion}")
+            politicos = self.oracle_repo.buscar_politicos_por_eleccion(eleccion, nombres, apellidos)
+            logger.info(f"✅ Políticos encontrados: {len(politicos)} políticos")
+            return politicos
+        except Exception as e:
+            logger.error(f"❌ Error al buscar políticos por elección: {e}")
+            return []
+
+    def buscar_candidatos_unicos(self, nombres: str, apellidos: str = "") -> list:
+        """
+        Busca candidatos únicos por nombres y apellidos (sin repetir nombres)
+        """
+        try:
+            logger.info(f"👤 Buscando candidatos únicos: {nombres} {apellidos}")
+            candidatos = self.oracle_repo.buscar_candidatos_unicos(nombres, apellidos)
+            logger.info(f"✅ Candidatos únicos encontrados: {len(candidatos)} candidatos")
+            return candidatos
+        except Exception as e:
+            logger.error(f"❌ Error al buscar candidatos únicos: {e}")
+            return []
+    
+    def generar_menu_candidatos(self, candidatos: list) -> str:
+        """
+        Genera el menú de candidatos únicos encontrados
+        """
+        if not candidatos:
+            return "No se encontraron candidatos que coincidan con tu búsqueda."
+        
+        menu = "👥 **Candidatos Encontrados**\n\nSelecciona el candidato que deseas consultar:\n\n"
+        
+        for i, candidato in enumerate(candidatos, 1):
+            menu += f"{i}. {candidato['nombre_completo']}\n"
+        
+        return menu
+    
+    def obtener_elecciones_por_candidato(self, nombres: str, apellido_paterno: str, apellido_materno: str) -> list:
+        """
+        Obtiene todas las elecciones donde aparece un candidato específico
+        """
+        try:
+            logger.info(f"🗳️ Obteniendo elecciones para candidato: {nombres} {apellido_paterno} {apellido_materno}")
+            elecciones = self.oracle_repo.obtener_elecciones_por_candidato(nombres, apellido_paterno, apellido_materno)
+            logger.info(f"✅ Elecciones encontradas: {len(elecciones)} elecciones")
+            return elecciones
+        except Exception as e:
+            logger.error(f"❌ Error al obtener elecciones por candidato: {e}")
+            return []
+    
+    def generar_menu_elecciones_candidato(self, elecciones: list, nombre_candidato: str) -> str:
+        """
+        Genera el menú de elecciones donde aparece un candidato
+        """
+        if not elecciones:
+            return f"No se encontraron elecciones para {nombre_candidato}."
+        
+        menu = f"🗳️ **Elecciones de {nombre_candidato}**\n\nSelecciona la elección para ver el detalle:\n\n"
+        
+        for i, eleccion in enumerate(elecciones, 1):
+            menu += f"{i}. {eleccion}\n"
+        
+        return menu
+    
+    def obtener_detalle_candidato_eleccion(self, nombres: str, apellido_paterno: str, apellido_materno: str, eleccion: str) -> dict:
+        """
+        Obtiene el detalle completo de un candidato en una elección específica
+        """
+        try:
+            logger.info(f"📋 Obteniendo detalle de candidato en elección: {eleccion}")
+            detalle = self.oracle_repo.obtener_detalle_candidato_eleccion(nombres, apellido_paterno, apellido_materno, eleccion)
+            logger.info(f"✅ Detalle obtenido: {'Sí' if detalle else 'No'}")
+            return detalle
+        except Exception as e:
+            logger.error(f"❌ Error al obtener detalle de candidato: {e}")
+            return {}

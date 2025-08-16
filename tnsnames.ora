@@ -1,0 +1,386 @@
+# Every line that begins with # is a comment line
+#
+# Create Oracle net service names, or aliases, for each database server 
+# you need to connect to.
+#
+# TNSNames.ora sample entry
+#
+# alias =
+#  (DESCRIPTION =
+#    (ADDRESS = (PROTOCOL = TCP)(HOST = myserver.mycompany.com)(PORT = 1521))
+#    (CONNECT_DATA =
+#      (SERVER = DEDICATED)
+#      (SERVICE_NAME = orcl)
+#    )
+#  )
+#
+# You can modify the entry below for your own database.
+# <data source alias> = Name to use in the connection string Data Source
+# <hostname or IP> = name or IP of the database server machine
+# <port> = database server machine port to use
+# <database service name> = name of the database service on the server
+
+<data,source,alias>=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=<hostname or IP>)
+      (PORT=0)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=<database service name>)
+    )
+  )
+
+MTDDESA5=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=MTDDESA)
+    )
+  )
+
+OPEXTPREPROD=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=OPEXTPRE)
+    )
+  )
+
+DEOPELEC=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=OPEXTDESA)
+    )
+  )
+
+OPELEC=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=PR-SRVBD-scan)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=srv_opext.domintern0jne.local)
+    )
+  )
+
+
+
+MTDPROD=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=PR-SRVBD-scan)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=srv_mtdprod.domintern0jne.local)
+    )
+  )
+
+BDSPROD_DES=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=BDSDESA)
+    )
+  )
+
+SIJECAL=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=sijecal)
+    )
+  )
+
+######################
+# Added by Tilin
+SIJE=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=sije)
+    )
+  )
+
+SIRCPROD_NAZCA=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=ds-bd19c)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=SIRCPROD)
+    )
+  )
+
+OPINT_NAZCA=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=ds-bd19c)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=OPINT)
+    )
+  )
+
+INFGOBDB_NAZCA=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=ds-bd19c)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=INFGOBDB)
+    )
+  )
+
+SIGA_NAZCA=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=ds-bd19c)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=SIGA)
+    )
+  )
+
+BDSPROD_NAZCA=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=ds-bd19c)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=BDSPROD)
+    )
+  )
+
+MTDPROD_NAZCA=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=192.168.12.157)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=MTDPROD)
+    )
+  )
+
+OPEXT_NAZCA=
+  (DESCRIPTION_LIST=
+    (DESCRIPTION=
+      (ADDRESS=
+        (PROTOCOL=TCP)
+        (HOST=192.168.12.157)
+        (PORT=1521)
+      )
+      (CONNECT_DATA=
+        (SERVER=dedicated)
+        (SERVICE_NAME=OPEXT)
+      )
+    )
+    (DESCRIPTION=
+      (ADDRESS=
+        (PROTOCOL=TCP)
+        (HOST=oda-x8-2ha-vm1)
+        (PORT=1521)
+      )
+      (CONNECT_DATA=
+        (SERVER=dedicated)
+        (SERVICE_NAME=OBSERVAT)
+      )
+    )
+  )
+
+SIRCCAL=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=sirccal)
+    )
+  )
+
+MTDCAL=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=MTDCAL)
+    )
+  )
+
+OPEXT144=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=OPEXTCAL)
+    )
+  )
+
+OPEXTCAL=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=OPEXTCAL)
+    )
+  )
+
+BDSCAL=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=BDSCAL)
+    )
+  )
+
+MTDPREPROD=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=MTDPRE)
+    )
+  )
+
+OPEXT33=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=OPEXTPRE)
+    )
+  )
+
+CALIDAD_SIJE=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=sijecal)
+    )
+  )  
+DESARROLLO2=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=sijecal)
+    )
+  )
+DEOPELEC_SOPORTE=
+  (DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=oda-x8-2ha-vm1)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=OBSERVAT)
+    )
+  )
+ROP=
+(DESCRIPTION=
+    (ADDRESS=
+      (PROTOCOL=TCP)
+      (HOST=PR-SRVBD-scan)
+      (PORT=1521)
+    )
+    (CONNECT_DATA=
+      (SERVER=dedicated)
+      (SERVICE_NAME=srv_opext.domintern0jne.local)
+    )
+  )

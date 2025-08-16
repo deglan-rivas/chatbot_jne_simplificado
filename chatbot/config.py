@@ -26,6 +26,9 @@ class Settings:
     ORACLE_PASS: str = os.getenv("ORACLE_PASS", "desarrollo")
     ORACLE_DSN: str = os.getenv("ORACLE_DSN", "oda-x8-2ha-vm1:1521/OPEXTDESA")
     ORACLE_SCHEMA: str = "ELECCIA"
+
+    TNS_ADMIN = os.getenv("TNS_ADMIN", "/home/deglanrivas/Escritorio/crypto_erick_2")
+    ORACLEDB_CLIENT_PATH = os.getenv("ORACLEDB_CLIENT_PATH", "/opt/oracle/instantclient_19_27")
     
     @property
     def DB_URL(self) -> str:

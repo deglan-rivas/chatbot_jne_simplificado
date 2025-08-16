@@ -1,6 +1,14 @@
 version: '3.8'
 
 services:
+  app:
+    build: .
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    restart: unless-stopped
+
   postgres:
     image: postgres:15-alpine
     container_name: postgres_db

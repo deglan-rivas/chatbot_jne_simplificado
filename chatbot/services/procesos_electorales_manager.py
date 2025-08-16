@@ -1,6 +1,7 @@
 from chatbot.database.oracle_repository import OracleRepository
 import logging
 import os
+from datetime import datetime
 from google import genai
 
 logger = logging.getLogger(__name__)
@@ -101,75 +102,158 @@ class ProcesosElectoralesManager:
     
     def buscar_hitos_electorales_semanticamente(self, proceso_electoral: str, consulta_usuario: str, top_k: int = 5) -> list:
         """
-        Busca hitos electorales usando búsqueda semántica con LLM (similar a servicios digitales)
+        Busca hitos electorales usando búsqueda semántica con LLM.
+        Obtiene TODOS los hitos del proceso electoral y usa el LLM para seleccionar los más relevantes,
+        pasando el texto completo de los hitos al contexto del LLM.
         """
         try:
-            logger.info(f"🔍 Buscando hitos electorales semánticamente para {proceso_electoral} con consulta: {consulta_usuario}")
-            
-            # Obtener todos los hitos del proceso electoral
-            todos_hitos = self.oracle_repo.obtener_hitos_electorales_por_proceso(proceso_electoral)
-            
-            if not todos_hitos:
-                logger.warning(f"No se encontraron hitos para el proceso: {proceso_electoral}")
+            # Verificar si es un proceso específico válido
+            procesos_especificos = ["EG.2026", "EMC.2025", "ERM.2022", "EG.2021"]
+            if proceso_electoral not in procesos_especificos:
                 return []
             
-            # Crear prompt para el LLM (exactamente como servicios digitales)
+            # Obtener TODOS los hitos del proceso electoral (SIN filtro de texto, solo por proceso)
+            todos_hitos = self.oracle_repo.obtener_todos_hitos_por_proceso(proceso_electoral)
+            
+            if not todos_hitos:
+                return []
+            
+            # Si hay pocos hitos, devolver todos directamente
+            if len(todos_hitos) <= top_k:
+                return todos_hitos
+            
+            # Crear el texto de los hitos con su descripción completa
             hitos_texto = ""
             for i, hito in enumerate(todos_hitos):
-                hitos_texto += f"{i+1}. {hito['hito_electoral']}\n"
+                descripcion = hito.get('hito_electoral', '')
+                hitos_texto += f"{i+1}. {descripcion}\n"
             
-            prompt = f"""
-            Eres un asistente experto en procesos electorales del JNE. 
-            
-            El usuario busca: "{consulta_usuario}"
-            
-            IMPORTANTE: Solo hay {len(todos_hitos)} hitos electorales disponibles (numerados del 1 al {len(todos_hitos)}).
-            
-            Analiza los siguientes hitos electorales y selecciona los {top_k} más relevantes para la consulta del usuario.
-            Responde SOLO con los números de los hitos más relevantes, separados por comas.
-            
-            Hitos electorales disponibles:
-            {hitos_texto}
-            
-            Números de hitos más relevantes (solo números del 1 al {len(todos_hitos)}):"""
-            
-            # Usar el LLM para encontrar hitos relevantes
-            response = self.client.models.generate_content(
-                model="gemma-3-27b-it",
-                contents=prompt
+            prompt = (
+                f"Eres un asistente del JNE. Selecciona los {top_k} hitos más relevantes.\n\n"
+                f"FECHA ACTUAL: {datetime.now().strftime('%d/%m/%Y')}\n"
+                f"CONSULTA: \"{consulta_usuario}\"\n\n"
+                f"INSTRUCCIONES:\n"
+                f"1. Analiza los hitos disponibles considerando la fecha actual\n"
+                f"2. Prioriza hitos que estén por ocurrir o sean recientes\n"
+                f"3. Selecciona los {top_k} más relevantes para la consulta\n"
+                f"4. Responde SOLO con números separados por comas\n\n"
+                f"HITOS ({len(todos_hitos)} disponibles):\n"
+                f"{hitos_texto}\n\n"
+                f"Respuesta (solo números):"
             )
             
-            # Parsear la respuesta del LLM
-            numeros_texto = response.text.strip()
-            logger.info(f"🤖 Respuesta del LLM: '{numeros_texto}'")
-            numeros = []
-            
-            # Extraer números de la respuesta
-            for parte in numeros_texto.split(','):
-                parte = parte.strip()
-                if parte.isdigit():
-                    numero = int(parte) - 1  # Convertir a índice base 0
-                    if 0 <= numero < len(todos_hitos):
-                        numeros.append(numero)
-                    else:
-                        logger.warning(f"⚠️ Número fuera de rango: {numero} (rango: 0-{len(todos_hitos)-1})")
+            try:
+                # Usar el LLM para encontrar hitos relevantes
+                response = self.client.models.generate_content(
+                    model="gemma-3-27b-it",
+                    contents=prompt
+                )
+                
+                # Parsear la respuesta del LLM
+                numeros_texto = response.text.strip()
+                numeros = []
+                
+                # Extraer números de la respuesta
+                for parte in numeros_texto.split(','):
+                    parte = parte.strip()
+                    if parte.isdigit():
+                        numero = int(parte) - 1  # Convertir a índice base 0
+                        if 0 <= numero < len(todos_hitos):
+                            numeros.append(numero)
+                
+                # Si el LLM devolvió números válidos, usarlos
+                if numeros:
+                    # Obtener los hitos seleccionados
+                    hitos_seleccionados = []
+                    for numero in numeros[:top_k]:
+                        hitos_seleccionados.append(todos_hitos[numero])
+                    
+                    return hitos_seleccionados
                 else:
-                    logger.warning(f"⚠️ Parte no numérica: '{parte}'")
+                    raise Exception("LLM no devolvió números válidos")
+                    
+            except Exception as llm_error:
+                # Fallback: búsqueda por texto en los hitos disponibles
+                return self._busqueda_fallback_hitos(todos_hitos, consulta_usuario, top_k)
             
-            logger.info(f"📊 Números extraídos: {numeros}")
+        except Exception as e:
+            return []
+    
+    def _busqueda_fallback_hitos(self, todos_hitos: list, consulta_usuario: str, top_k: int) -> list:
+        """
+        Método de fallback para buscar hitos cuando el LLM falla
+        """
+        try:
             
-            # Obtener los hitos seleccionados
-            hitos_seleccionados = []
-            for numero in numeros[:top_k]:
-                hitos_seleccionados.append(todos_hitos[numero])
+            # Obtener fecha actual
+            fecha_actual = datetime.now()
             
-            logger.info(f"✅ Hitos seleccionados semánticamente: {len(hitos_seleccionados)} hitos")
+            # Normalizar consulta del usuario
+            consulta_normalizada = consulta_usuario.lower().strip()
+            palabras_clave = [palabra.strip() for palabra in consulta_normalizada.split() if len(palabra.strip()) > 2]
+            
+            # Si no hay palabras clave válidas, devolver primeros hitos
+            if not palabras_clave:
+                return todos_hitos[:top_k]
+            
+            # Calcular puntuación de relevancia para cada hito
+            hitos_con_puntuacion = []
+            
+            for hito in todos_hitos:
+                descripcion = hito.get('hito_electoral', '').lower()
+                puntuacion = 0
+                
+                # Puntuación por palabras clave individuales
+                for palabra in palabras_clave:
+                    if palabra in descripcion:
+                        puntuacion += 1
+                        # Bonus por palabras más largas (más específicas)
+                        if len(palabra) > 4:
+                            puntuacion += 0.5
+                
+                # Puntuación extra por coincidencias exactas de la consulta completa
+                if consulta_normalizada in descripcion:
+                    puntuacion += 5
+                
+                # Puntuación por frases completas
+                for i in range(len(palabras_clave) - 1):
+                    frase = f"{palabras_clave[i]} {palabras_clave[i+1]}"
+                    if frase in descripcion:
+                        puntuacion += 2
+                
+                # Bonus por hitos con fechas específicas
+                if hito.get('dia') and hito.get('mes') and hito.get('anio'):
+                    puntuacion += 0.3
+                    
+                    # Bonus temporal: priorizar hitos futuros o recientes
+                    try:
+                        fecha_hito = datetime(hito['anio'], int(hito['mes']) if hito['mes'].isdigit() else 1, hito['dia'])
+                        if fecha_hito > fecha_actual:
+                            # Hito futuro - alta prioridad
+                            puntuacion += 3
+                        elif fecha_hito > fecha_actual.replace(year=fecha_actual.year - 1):
+                            # Hito reciente (último año) - prioridad media
+                            puntuacion += 1.5
+                        else:
+                            # Hito histórico - prioridad baja
+                            puntuacion += 0.5
+                    except:
+                        # Si no se puede parsear la fecha, mantener puntuación base
+                        pass
+                
+                hitos_con_puntuacion.append((hito, puntuacion))
+            
+            # Ordenar por puntuación (mayor a menor)
+            hitos_con_puntuacion.sort(key=lambda x: x[1], reverse=True)
+            
+            # Tomar los top_k hitos con mayor puntuación
+            hitos_seleccionados = [hito for hito, _ in hitos_con_puntuacion[:top_k]]
+            
             return hitos_seleccionados
             
         except Exception as e:
-            logger.error(f"❌ Error en búsqueda semántica de hitos: {e}")
-            # Fallback: devolver primeros hitos
-            return todos_hitos[:top_k] if todos_hitos else []
+            # Último recurso: devolver los primeros hitos
+            return todos_hitos[:top_k]
     
     def buscar_hitos_electorales(self, proceso_electoral: str, consulta: str) -> list:
         """
@@ -184,41 +268,122 @@ class ProcesosElectoralesManager:
     
     def generar_menu_hitos(self, hitos: list) -> str:
         """
-        Genera el menú de hitos electorales encontrados
+        Genera el menú de hitos electorales encontrados - CONCISO para móviles
         """
         if not hitos:
             return "No se encontraron hitos electorales que coincidan con tu consulta."
         
-        menu = "📋 **Hitos Electorales Encontrados**\n\nSelecciona el hito que deseas consultar:\n\n"
+        menu = f"📋 **Hitos Encontrados** ({len(hitos)})\n\n"
+        menu += "Selecciona uno:\n\n"
         
         for i, hito in enumerate(hitos, 1):
-            # Truncar descripción si es muy larga
+            # Truncar descripción más agresivamente para móviles
             descripcion = hito['hito_electoral']
-            if len(descripcion) > 80:
-                descripcion = descripcion[:80] + "..."
+            if len(descripcion) > 60:  # Más corto para móviles
+                descripcion = descripcion[:60] + "..."
             
-            menu += f"{i}. {descripcion}\n"
+            # Agregar fecha y contexto temporal de forma compacta
+            fecha_info = ""
+            contexto_temporal = ""
+            
+            if hito.get('dia') and hito.get('mes') and hito.get('anio'):
+                fecha_info = f" ({hito['dia']}/{hito['mes']})"
+                
+                # Determinar contexto temporal
+                try:
+                    fecha_hito = datetime(hito['anio'], int(hito['mes']) if hito['mes'].isdigit() else 1, hito['dia'])
+                    fecha_actual = datetime.now()
+                    
+                    if fecha_hito < fecha_actual:
+                        contexto_temporal = " ✅"
+                    elif fecha_hito > fecha_actual:
+                        contexto_temporal = " 🔜"
+                    else:
+                        contexto_temporal = " 🎯"
+                except:
+                    contexto_temporal = " 📅"
+            
+            menu += f"{i}. {descripcion}{fecha_info}{contexto_temporal}\n"
         
+        menu += f"\n💡 Escribe el número o 'salir':"
         return menu
     
     def formatear_hito_electoral(self, hito: dict) -> str:
         """
-        Formatea un hito electoral para mostrar al usuario
+        Formatea un hito electoral usando LLM para generar una respuesta amigable y concisa
         """
         try:
-            fecha = f"14/08/2025"
             
-            respuesta = f"📅 **Hito Electoral**\n\n"
-            respuesta += f"🗓️ **Fecha:** {fecha}\n\n"
-            respuesta += f"📝 **Descripción:** {hito['hito_electoral']}\n\n"
-            respuesta += f"🏛️ **Proceso Electoral:** {hito['proceso_electoral']}\n\n"
-            respuesta += "¿Tienes otra consulta? (responde 'si' o 'no'):"
+            # Obtener fecha actual
+            fecha_actual = datetime.now()
+            fecha_actual_str = fecha_actual.strftime("%d/%m/%Y")
             
-            return respuesta
+            # Construir fecha del hito
+            if hito.get('dia') and hito.get('mes') and hito.get('anio'):
+                fecha_hito = f"{hito['dia']}/{hito['mes']}/{hito['anio']}"
+                
+                # Determinar si el hito ya pasó o está por venir
+                try:
+                    fecha_hito_obj = datetime(hito['anio'], int(hito['mes']) if hito['mes'].isdigit() else 1, hito['dia'])
+                    if fecha_hito_obj < fecha_actual:
+                        contexto_temporal = "ya ocurrió"
+                    elif fecha_hito_obj > fecha_actual:
+                        contexto_temporal = "está por ocurrir"
+                    else:
+                        contexto_temporal = "ocurre hoy"
+                except:
+                    contexto_temporal = "está programado"
+            else:
+                fecha_hito = "Fecha no especificada"
+                contexto_temporal = "sin fecha específica"
+            
+            # Crear prompt para el LLM con contexto temporal
+            prompt = f"""
+            Eres un asistente del JNE. Genera una respuesta CONCISA y contextualizada para este hito electoral.
+            
+            FECHA ACTUAL: {fecha_actual_str}
+            HITO: {hito['hito_electoral']}
+            FECHA DEL HITO: {fecha_hito}
+            PROCESO: {hito['proceso_electoral']}
+            CONTEXTO TEMPORAL: Este hito {contexto_temporal}
+            
+            INSTRUCCIONES:
+            - Máximo 3-4 líneas de texto
+            - Explica QUÉ es el hito de forma simple
+            - Menciona si YA OCURRIÓ o ESTÁ POR OCURRIR
+            - Incluye 2-3 emojis relevantes
+            - Sé directo y útil para ciudadanos
+            - NO uses lenguaje técnico complejo
+            
+            Respuesta contextualizada:
+            """
+            
+            try:
+                # Usar el LLM para generar respuesta amigable
+                response = self.client.models.generate_content(
+                    model="gemma-3-27b-it",
+                    contents=prompt
+                )
+                
+                respuesta_llm = response.text.strip()
+                
+                # Agregar información esencial de forma compacta
+                respuesta_completa = f"{respuesta_llm}\n\n"
+                respuesta_completa += f"📅 {fecha_hito} | 🏛️ {hito['proceso_electoral']}\n\n"
+                respuesta_completa += "¿Otra consulta? (si/no):"
+                
+                return respuesta_completa
+                
+            except Exception as llm_error:
+                # Fallback: respuesta estándar CONCISA con contexto temporal
+                respuesta = f"📅 **{hito['hito_electoral']}**\n\n"
+                respuesta += f"🗓️ {fecha_hito} ({contexto_temporal}) | 🏛️ {hito['proceso_electoral']}\n\n"
+                respuesta += "¿Otra consulta? (si/no):"
+                
+                return respuesta
             
         except Exception as e:
-            logger.error(f"❌ Error al formatear hito electoral: {e}")
-            return "Error al formatear la información del hito electoral."
+            return "Error al procesar el hito electoral."
     
     def buscar_politicos(self, nombres: str, apellidos: str = "") -> list:
         """
@@ -337,7 +502,6 @@ class ProcesosElectoralesManager:
             return respuesta
             
         except Exception as e:
-            logger.error(f"❌ Error al obtener otros procesos electorales: {e}")
             return "Error al obtener información de otros procesos electorales. Por favor, intente más tarde."
 
     def obtener_elecciones_disponibles(self) -> list:
@@ -398,6 +562,19 @@ class ProcesosElectoralesManager:
             return candidatos
         except Exception as e:
             logger.error(f"❌ Error al buscar candidatos únicos: {e}")
+            return []
+    
+    def buscar_candidatos_por_apellidos_separados(self, nombres: str, apellido_paterno: str, apellido_materno: str) -> list:
+        """
+        Busca candidatos por nombres, apellido paterno y materno por separado
+        """
+        try:
+            logger.info(f"👤 Buscando candidatos por apellidos separados: {nombres} {apellido_paterno} {apellido_materno}")
+            candidatos = self.oracle_repo.buscar_candidatos_por_apellidos_separados(nombres, apellido_paterno, apellido_materno)
+            logger.info(f"✅ Candidatos encontrados por apellidos separados: {len(candidatos)} candidatos")
+            return candidatos
+        except Exception as e:
+            logger.error(f"❌ Error al buscar candidatos por apellidos separados: {e}")
             return []
     
     def generar_menu_candidatos(self, candidatos: list) -> str:

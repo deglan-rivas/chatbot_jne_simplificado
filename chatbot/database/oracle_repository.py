@@ -3,8 +3,22 @@ from chatbot.database.oracle_connection import get_db
 from chatbot.database.oracle_models import OrganizacionPolitica, CronogramaElectoral, Politico
 from datetime import datetime
 import logging
+import unicodedata
 
 logger = logging.getLogger(__name__)
+
+def eliminar_tildes(texto: str) -> str:
+    """
+    Elimina tildes y caracteres especiales de un texto
+    """
+    if not texto:
+        return texto
+    
+    # Normalizar caracteres Unicode (NFD) y eliminar diacríticos
+    texto_normalizado = unicodedata.normalize('NFD', texto)
+    # Filtrar solo caracteres sin diacríticos
+    texto_sin_tildes = ''.join(c for c in texto_normalizado if not unicodedata.combining(c))
+    return texto_sin_tildes
 
 class OracleRepository:
     """Repositorio para consultas a Oracle Database usando modelos SQLAlchemy"""
@@ -168,10 +182,9 @@ class OracleRepository:
         """
         try:
             for session in get_db():
-                # Buscar hitos que contengan la consulta del usuario
+                # Obtener TODOS los hitos del proceso electoral (sin filtro de texto)
                 result = session.query(CronogramaElectoral).filter(
-                    CronogramaElectoral.PROCESO_ELECTORAL == proceso_electoral,
-                    CronogramaElectoral.HITO_ELECTORAL.ilike(f"%{consulta}%")
+                    CronogramaElectoral.PROCESO_ELECTORAL == proceso_electoral
                 ).order_by(
                     CronogramaElectoral.ANIO,
                     CronogramaElectoral.MES,
@@ -188,11 +201,50 @@ class OracleRepository:
                         "hito_electoral": row.HITO_ELECTORAL
                     })
                 
-                logger.info(f"✅ Hitos electorales encontrados: {len(hitos)} hitos")
+                logger.info(f"✅ Hitos electorales obtenidos para {proceso_electoral}: {len(hitos)} hitos")
                 return hitos
                 
         except Exception as e:
             logger.error(f"❌ Error al buscar hitos electorales: {e}")
+            return []
+    
+    def obtener_todos_hitos_por_proceso(self, proceso_electoral: str) -> list:
+        """
+        Obtiene TODOS los hitos electorales de un proceso específico (sin filtro de texto)
+        Para uso en búsqueda semántica
+        """
+        try:
+            for session in get_db():
+                # Obtener TODOS los hitos del proceso electoral (sin filtro de texto)
+                result = session.query(CronogramaElectoral).filter(
+                    CronogramaElectoral.PROCESO_ELECTORAL == proceso_electoral
+                ).order_by(
+                    CronogramaElectoral.ANIO,
+                    CronogramaElectoral.MES,
+                    CronogramaElectoral.DIA
+                ).all()
+                
+                hitos = []
+                for i, row in enumerate(result):
+                    # Intentar obtener ID si existe, sino usar índice
+                    try:
+                        id_valor = row.ID if hasattr(row, 'ID') else i
+                    except:
+                        id_valor = i
+                    
+                    hitos.append({
+                        "id": id_valor,
+                        "proceso_electoral": row.PROCESO_ELECTORAL,
+                        "anio": row.ANIO,
+                        "mes": row.MES,
+                        "dia": row.DIA,
+                        "hito_electoral": row.HITO_ELECTORAL
+                    })
+                
+                return hitos
+                
+        except Exception as e:
+            logger.error(f"❌ Error al obtener todos los hitos por proceso: {e}")
             return []
     
     def buscar_politicos(self, nombres: str, apellidos: str = "") -> list:
@@ -203,12 +255,14 @@ class OracleRepository:
             for session in get_db():
                 query = session.query(Politico)
                 
-                # Filtrar por nombres
+                # Filtrar por nombres (eliminando tildes)
                 if nombres:
-                    query = query.filter(Politico.TXNOMBRE.ilike(f"%{nombres}%"))
+                    nombres_sin_tildes = eliminar_tildes(nombres)
+                    query = query.filter(Politico.TXNOMBRE.ilike(f"%{nombres_sin_tildes}%"))
                 
-                # Filtrar por apellidos si se proporcionan
+                # Filtrar por apellidos si se proporcionan (eliminando tildes)
                 if apellidos:
+                    apellidos_sin_tildes = eliminar_tildes(apellidos)
                     # Buscar en apellido paterno o materno
                     query = query.filter(
                         (Politico.TXAPEPAT.ilike(f"%{apellidos}%")) |
@@ -318,15 +372,17 @@ class OracleRepository:
             for session in get_db():
                 query = session.query(Politico)
                 
-                # Filtrar por nombres
+                # Filtrar por nombres (eliminando tildes)
                 if nombres:
-                    query = query.filter(Politico.TXNOMBRE.ilike(f"%{nombres}%"))
+                    nombres_sin_tildes = eliminar_tildes(nombres)
+                    query = query.filter(Politico.TXNOMBRE.ilike(f"%{nombres_sin_tildes}%"))
                 
-                # Filtrar por apellidos si se proporcionan
+                # Filtrar por apellidos si se proporcionan (eliminando tildes)
                 if apellidos:
+                    apellidos_sin_tildes = eliminar_tildes(apellidos)
                     query = query.filter(
-                        (Politico.TXAPEPAT.ilike(f"%{apellidos}%")) |
-                        (Politico.TXAPEMAT.ilike(f"%{apellidos}%"))
+                        (Politico.TXAPEPAT.ilike(f"%{apellidos_sin_tildes}%")) |
+                        (Politico.TXAPEMAT.ilike(f"%{apellidos_sin_tildes}%"))
                     )
                 
                 # Obtener candidatos únicos (sin repetir nombres completos)
@@ -356,6 +412,58 @@ class OracleRepository:
                 
         except Exception as e:
             logger.error(f"❌ Error al buscar candidatos únicos: {e}")
+            return []
+    
+    def buscar_candidatos_por_apellidos_separados(self, nombres: str, apellido_paterno: str, apellido_materno: str) -> list:
+        """
+        Busca candidatos por nombres, apellido paterno y materno por separado
+        """
+        try:
+            for session in get_db():
+                query = session.query(Politico)
+                
+                # Filtrar por nombres (eliminando tildes)
+                if nombres:
+                    nombres_sin_tildes = eliminar_tildes(nombres)
+                    query = query.filter(Politico.TXNOMBRE.ilike(f"%{nombres_sin_tildes}%"))
+                
+                # Filtrar por apellido paterno (eliminando tildes)
+                if apellido_paterno:
+                    apellido_paterno_sin_tildes = eliminar_tildes(apellido_paterno)
+                    query = query.filter(Politico.TXAPEPAT.ilike(f"%{apellido_paterno_sin_tildes}%"))
+                
+                # Filtrar por apellido materno (eliminando tildes)
+                if apellido_materno:
+                    apellido_materno_sin_tildes = eliminar_tildes(apellido_materno)
+                    query = query.filter(Politico.TXAPEMAT.ilike(f"%{apellido_materno_sin_tildes}%"))
+                
+                # Obtener candidatos únicos (sin repetir nombres completos)
+                result = session.query(
+                    Politico.TXNOMBRE,
+                    Politico.TXAPEPAT,
+                    Politico.TXAPEMAT
+                ).filter(
+                    query.whereclause
+                ).distinct().order_by(
+                    Politico.TXNOMBRE,
+                    Politico.TXAPEPAT,
+                    Politico.TXAPEMAT
+                ).all()
+                
+                candidatos = []
+                for row in result:
+                    candidatos.append({
+                        "nombres": row.TXNOMBRE,
+                        "apellido_paterno": row.TXAPEPAT,
+                        "apellido_materno": row.TXAPEMAT,
+                        "nombre_completo": f"{row.TXNOMBRE} {row.TXAPEPAT} {row.TXAPEMAT}".strip()
+                    })
+                
+                logger.info(f"✅ Candidatos encontrados por apellidos separados: {len(candidatos)} candidatos")
+                return candidatos
+                
+        except Exception as e:
+            logger.error(f"❌ Error al buscar candidatos por apellidos separados: {e}")
             return []
     
     def obtener_elecciones_por_candidato(self, nombres: str, apellido_paterno: str, apellido_materno: str) -> list:

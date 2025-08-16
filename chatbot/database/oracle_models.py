@@ -20,15 +20,18 @@ class CronogramaElectoral(OracleBase):
     __tablename__ = "CBOX_TBL_TRF_CRONOGRAMA_ELECTORAL"
     __table_args__ = {'schema': 'ELECCIA'}
     
+    # Campo ID único como llave primaria
+    ID = Column(Integer, primary_key=True, comment="ID único del hito electoral")
+    
     # Columnas principales - tipos exactos de la BD
-    PROCESO_ELECTORAL = Column(String(200), primary_key=True, comment="Proceso electoral")
+    PROCESO_ELECTORAL = Column(String(200), comment="Proceso electoral")
     ANIO = Column(Integer, comment="Año del hito electoral")
     MES = Column(String(200), comment="Mes del hito electoral")
     DIA = Column(Integer, comment="Día del hito electoral")
     HITO_ELECTORAL = Column(String(2000), comment="Descripción del hito electoral")
     
     def __repr__(self):
-        return f"<CronogramaElectoral(PROCESO_ELECTORAL={self.PROCESO_ELECTORAL}, HITO_ELECTORAL={self.HITO_ELECTORAL[:50]}...)>"
+        return f"<CronogramaElectoral(ID={self.ID}, PROCESO_ELECTORAL={self.PROCESO_ELECTORAL}, HITO_ELECTORAL={self.HITO_ELECTORAL[:50]}...)>"
 
 class Politico(OracleBase):
     """Modelo para la tabla CBOX_TBL_IGOB_POLITICOS de Oracle"""

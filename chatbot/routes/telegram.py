@@ -193,6 +193,23 @@ async def tilin_chatbot(req: Request):
         intent="navegacion_menu" if state["stage"] in menus else "consulta_informacion"
     )
 
+    # Verificar si el usuario quiere salir o cancelar
+    if text.lower().strip() in ["salir", "cancelar", "exit", "quit", "cancel"]:
+        respuesta = "🔄 Volviendo al menú principal:\n\n" + menus["main"]["text"]
+        
+        # Agregar respuesta del bot a la conversación
+        chat_memory.agregar_respuesta_bot(
+            user_id=str(chat_id),
+            respuesta=respuesta,
+            menu_actual="main",
+            estado_actual={"stage": "main", "flow": []}
+        )
+        
+        # Reiniciar flujo
+        user_states[chat_id] = {"stage": "main", "flow": []}
+        await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
+        return {"reply": respuesta}
+
     # Si el usuario está en un menú
     if state["stage"] in menus:
         options = menus[state["stage"]]["options"]
@@ -669,10 +686,12 @@ async def tilin_chatbot(req: Request):
         if text.isdigit():
             opcion = int(text)
             procesos_manager = get_procesos_electorales_manager()
-            procesos = procesos_manager.obtener_procesos_electorales()
+            
+            # Procesos específicos que siempre se muestran
+            procesos_especificos = ["EG.2026", "EMC.2025", "ERM.2022", "EG.2021"]
             
             # Verificar si es la opción "Otros procesos electorales"
-            if opcion == len(procesos) + 1:
+            if opcion == len(procesos_especificos) + 1:
                 respuesta = procesos_manager.obtener_otros_procesos_electorales()
                 
                 # Agregar respuesta del bot a la conversación
@@ -689,8 +708,8 @@ async def tilin_chatbot(req: Request):
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             
-            elif 1 <= opcion <= len(procesos):
-                proceso_seleccionado = procesos[opcion - 1]
+            elif 1 <= opcion <= len(procesos_especificos):
+                proceso_seleccionado = procesos_especificos[opcion - 1]
                 state["proceso_electoral"] = proceso_seleccionado
                 state["stage"] = "awaiting_hito_consulta"
                 
@@ -707,7 +726,7 @@ async def tilin_chatbot(req: Request):
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
             else:
-                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(procesos) + 1}."
+                respuesta = f"Opción no válida. Por favor, elige un número entre 1 y {len(procesos_especificos) + 1}."
                 await enviar_mensaje_telegram({"chat_id": chat_id, "text": respuesta})
                 return {"reply": respuesta}
         else:

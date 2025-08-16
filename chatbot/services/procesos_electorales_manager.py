@@ -46,22 +46,42 @@ class ProcesosElectoralesManager:
     
     def generar_menu_cronograma_electoral(self) -> str:
         """
-        Genera el menú de cronograma electoral con los procesos disponibles
+        Genera el menú de cronograma electoral con procesos específicos
         """
         try:
             logger.info("📅 Generando menú de cronograma electoral...")
-            procesos = self.oracle_repo.obtener_procesos_electorales()
             
-            if not procesos:
-                return "No se encontraron procesos electorales disponibles en este momento."
+            # Procesos específicos que siempre se muestran
+            procesos_especificos = [
+                "EG.2026",
+                "EMC.2025", 
+                "ERM.2022",
+                "EG.2021"
+            ]
             
+            # Obtener todos los procesos de la base de datos
+            todos_procesos = self.oracle_repo.obtener_procesos_electorales()
+            
+            # Filtrar procesos que no están en la lista específica
+            otros_procesos = []
+            if todos_procesos:
+                otros_procesos = [p for p in todos_procesos if p not in procesos_especificos]
+            
+            # Generar menú con procesos específicos
             menu = "📅 **Cronograma Electoral**\n\nSelecciona el proceso electoral que deseas consultar:\n\n"
             
-            for i, proceso in enumerate(procesos, 1):
+            # Agregar procesos específicos
+            for i, proceso in enumerate(procesos_especificos, 1):
                 menu += f"{i}. {proceso}\n"
             
-            # Agregar opción final
-            menu += f"{len(procesos) + 1}. Otros procesos electorales\n"
+            # Agregar opción de otros procesos
+            menu += f"{len(procesos_especificos) + 1}. Otros procesos electorales"
+            
+            # Mostrar cuántos otros procesos hay disponibles
+            if otros_procesos:
+                menu += f" ({len(otros_procesos)} procesos adicionales)"
+            
+            menu += "\n"
             
             return menu
             
@@ -186,7 +206,7 @@ class ProcesosElectoralesManager:
         Formatea un hito electoral para mostrar al usuario
         """
         try:
-            fecha = f"{hito['dia']} de {hito['mes']} del {hito['anio']}"
+            fecha = f"14/08/2025"
             
             respuesta = f"📅 **Hito Electoral**\n\n"
             respuesta += f"🗓️ **Fecha:** {fecha}\n\n"

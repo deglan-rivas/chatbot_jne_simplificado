@@ -1,4 +1,4 @@
-# Imagen base oficial de Ubuntu 22.04
+# Imagen base oficial de Python 3.11
 FROM python:3.11.12
 
 # Establecer el directorio de trabajo
@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     make \
     locales \
+     vim \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -34,41 +35,53 @@ ENV LC_ALL es_ES.UTF-8
 # Descargar e instalar Oracle Instant Client
 RUN wget https://download.oracle.com/otn_software/linux/instantclient/2380000/instantclient-basic-linux.x64-23.8.0.25.04.zip -P /tmp/ \
     && unzip /tmp/instantclient-basic-linux.x64-23.8.0.25.04.zip -d /opt/oracle/ \
-    && rm /tmp/instantclient-basic-linux.x64-23.8.0.25.04.zip \
-    && ln -s /opt/oracle/libclntsh.so.21.1 /opt/oracle/libclntsh.so
+    && rm /tmp/instantclient-basic-linux.x64-23.8.0.25.04.zip
 
-RUN echo /opt/oracle/instantclient_23_8 > /etc/ld.so.conf.d/oracle-instantclient.conf \
-    && ldconfig
+# Corregir el enlace simbólico y configuración de Oracle
+RUN cd /opt/oracle/instantclient_23_8 && \
+    ln -sf libclntsh.so.23.1 libclntsh.so && \
+    echo /opt/oracle/instantclient_23_8 > /etc/ld.so.conf.d/oracle-instantclient.conf && \
+    ldconfig
 
 # Configurar variables de entorno
 ENV LD_LIBRARY_PATH=/opt/oracle/instantclient_23_8:$LD_LIBRARY_PATH
 ENV PATH=/opt/oracle/instantclient_23_8:$PATH
-ENV UV_PROJECT_ENVIRONMENT=.venv
+ENV PYTHONUNBUFFERED=1
 
+# Instalar uv
+RUN pip install --upgrade pip && \
+    pip install uv
 
-# Instalar dependencias de Python
-RUN pip install --upgrade pip
-RUN pip install uv
+# Copiar archivos de configuración de dependencias
+COPY pyproject.toml uv.lock ./
 
-# Copiar el archivo requirements.txt al directorio de trabajo
-COPY pyproject.toml .
-COPY uv.lock .
+# Método alternativo: usar uv para instalar directamente
+RUN uv pip install --system -r pyproject.toml || \
+    (uv venv /app/venv && \
+     uv pip install --python /app/venv/bin/python -r pyproject.toml)
 
-# Instalar las dependencias de Python
-RUN uv venv
-RUN uv sync
+# Si el método anterior falla, usar pip tradicional
+RUN if [ ! -f /usr/local/bin/uvicorn ]; then \
+        pip install uvicorn fastapi; \
+    fi
 
 # Copiar el resto del código al directorio de trabajo
 COPY . .
 
+# Crear script de inicio
+RUN echo '#!/bin/bash\n\
+# Intentar encontrar uvicorn en diferentes ubicaciones\n\
+if [ -f /app/venv/bin/uvicorn ]; then\n\
+    exec /app/venv/bin/uvicorn chatbot.main:app --host 0.0.0.0 --port 8001 --reload\n\
+elif [ -f /usr/local/bin/uvicorn ]; then\n\
+    exec /usr/local/bin/uvicorn chatbot.main:app --host 0.0.0.0 --port 8001 --reload\n\
+else\n\
+    exec python -m uvicorn chatbot.main:app --host 0.0.0.0 --port 8001 --reload\n\
+fi' > /app/start.sh && \
+    chmod +x /app/start.sh
+
 # Exponer el puerto 8001
 EXPOSE 8001
 
-ENV PYTHONUNBUFFERED=1
-
-# Ejecutar la aplicación
-
-CMD [".venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
-
-
-# CMD ["tail", "-f", "/dev/null"]
+# Comando por defecto
+CMD ["/app/start.sh"]

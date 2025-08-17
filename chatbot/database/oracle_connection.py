@@ -10,10 +10,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # windows
-# oracledb.init_oracle_client()
+oracledb.init_oracle_client()
 
 # linux
-oracledb.init_oracle_client(lib_dir=settings.ORACLEDB_CLIENT_PATH)
+# oracledb.init_oracle_client(lib_dir=settings.ORACLEDB_CLIENT_PATH)
 
 motor = create_engine(
     f"oracle+oracledb://{settings.ORACLE_USER}:{settings.ORACLE_PASS}@{settings.ORACLE_DSN}",

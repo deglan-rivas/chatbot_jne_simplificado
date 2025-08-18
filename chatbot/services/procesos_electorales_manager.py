@@ -13,6 +13,11 @@ class ProcesosElectoralesManager:
         self.oracle_repo = OracleRepository()
         # Inicializar cliente LLM
         self.client = genai.Client()
+        self.MESES = {
+            "ENERO": 1, "FEBRERO": 2, "MARZO": 3, "ABRIL": 4,
+            "MAYO": 5, "JUNIO": 6, "JULIO": 7, "AGOSTO": 8,
+            "SEPTIEMBRE": 9, "SETIEMBRE": 9, "OCTUBRE": 10, "NOVIEMBRE": 11, "DICIEMBRE": 12
+        }
     
     def obtener_tipos_organizaciones_politicas(self) -> str:
         """
@@ -272,13 +277,6 @@ class ProcesosElectoralesManager:
         """
         if not hitos:
             return "No se encontraron hitos electorales que coincidan con tu consulta."
-        
-        # Diccionario de meses en español
-        MESES = {
-            "ENERO": 1, "FEBRERO": 2, "MARZO": 3, "ABRIL": 4,
-            "MAYO": 5, "JUNIO": 6, "JULIO": 7, "AGOSTO": 8,
-            "SEPTIEMBRE": 9, "OCTUBRE": 10, "NOVIEMBRE": 11, "DICIEMBRE": 12
-        }
 
         menu = f"📋 **Hitos Encontrados** ({len(hitos)})\n\n"
         menu += "Selecciona uno:\n\n"
@@ -302,7 +300,7 @@ class ProcesosElectoralesManager:
                     if str(hito['mes']).isdigit():
                         mes = int(hito['mes'])
                     else:
-                        mes = MESES.get(str(hito['mes']).upper(), 1)  # Default enero si no reconoce
+                        mes = self.MESES.get(str(hito['mes']).upper(), 1)  # Default enero si no reconoce
                     
                     fecha_hito = datetime(
                         int(hito['anio']),
@@ -330,13 +328,6 @@ class ProcesosElectoralesManager:
         Formatea un hito electoral usando LLM para generar una respuesta amigable y concisa
         """
         try:
-            # Diccionario de meses en español
-            MESES = {
-                "ENERO": 1, "FEBRERO": 2, "MARZO": 3, "ABRIL": 4,
-                "MAYO": 5, "JUNIO": 6, "JULIO": 7, "AGOSTO": 8,
-                "SEPTIEMBRE": 9, "OCTUBRE": 10, "NOVIEMBRE": 11, "DICIEMBRE": 12
-            }
-
             # Obtener fecha actual
             fecha_actual = datetime.now().date()
             fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
@@ -350,7 +341,7 @@ class ProcesosElectoralesManager:
                     if str(hito['mes']).isdigit():
                         mes = int(hito['mes'])
                     else:
-                        mes = MESES.get(str(hito['mes']).upper(), 1)  # Default enero si no reconoce
+                        mes = self.MESES.get(str(hito['mes']).upper(), 1)  # Default enero si no reconoce
                     
                     fecha_hito_obj = datetime(
                         int(hito['anio']),

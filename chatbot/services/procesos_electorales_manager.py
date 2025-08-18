@@ -330,10 +330,16 @@ class ProcesosElectoralesManager:
         Formatea un hito electoral usando LLM para generar una respuesta amigable y concisa
         """
         try:
-            
+            # Diccionario de meses en español
+            MESES = {
+                "ENERO": 1, "FEBRERO": 2, "MARZO": 3, "ABRIL": 4,
+                "MAYO": 5, "JUNIO": 6, "JULIO": 7, "AGOSTO": 8,
+                "SEPTIEMBRE": 9, "OCTUBRE": 10, "NOVIEMBRE": 11, "DICIEMBRE": 12
+            }
+
             # Obtener fecha actual
-            fecha_actual = datetime.now()
-            fecha_actual_str = fecha_actual.strftime("%d/%m/%Y")
+            fecha_actual = datetime.now().date()
+            fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
             
             # Construir fecha del hito
             if hito.get('dia') and hito.get('mes') and hito.get('anio'):
@@ -341,7 +347,17 @@ class ProcesosElectoralesManager:
                 
                 # Determinar si el hito ya pasó o está por venir
                 try:
-                    fecha_hito_obj = datetime(hito['anio'], int(hito['mes']) if hito['mes'].isdigit() else 1, hito['dia'])
+                    if str(hito['mes']).isdigit():
+                        mes = int(hito['mes'])
+                    else:
+                        mes = MESES.get(str(hito['mes']).upper(), 1)  # Default enero si no reconoce
+                    
+                    fecha_hito_obj = datetime(
+                        int(hito['anio']),
+                        mes,
+                        int(hito['dia'])
+                    ).date()
+                    
                     if fecha_hito_obj < fecha_actual:
                         contexto_temporal = "ya ocurrió"
                     elif fecha_hito_obj > fecha_actual:

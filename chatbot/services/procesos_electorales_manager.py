@@ -305,7 +305,7 @@ class ProcesosElectoralesManager:
             
             menu += f"{i}. {descripcion}{fecha_info}{contexto_temporal}\n"
         
-        menu += f"\n💡 Escribe el número o 'salir':"
+        menu += f"\n💡 Escribe el número o 'menu':"
         return menu
     
     def formatear_hito_electoral(self, hito: dict) -> str:
@@ -562,6 +562,164 @@ class ProcesosElectoralesManager:
             return candidatos
         except Exception as e:
             logger.error(f"❌ Error al buscar candidatos únicos: {e}")
+            return []
+    
+    def parsear_nombre_completo(self, texto: str) -> dict:
+        """
+        Parsea un texto que puede contener nombres y apellidos de forma inteligente
+        Maneja casos como: "Juan Carlos de la Torre García", "María José del Castillo"
+        """
+        try:
+            # Normalizar el texto
+            texto = texto.strip()
+            palabras = texto.split()
+            
+            if len(palabras) < 2:
+                return {"nombres": texto, "apellido_paterno": "", "apellido_materno": ""}
+            
+            # Preposiciones y artículos comunes en apellidos españoles
+            preposiciones = {"de", "del", "la", "las", "los", "da", "di", "do", "du", "van", "von", "van der", "von der"}
+            
+            # Detectar nombres (generalmente las primeras 1-3 palabras)
+            nombres = []
+            apellidos = []
+            i = 0
+            
+            # Procesar palabras para separar nombres de apellidos
+            while i < len(palabras):
+                palabra = palabras[i]
+                
+                # Si es la primera palabra, siempre es nombre
+                if i == 0:
+                    nombres.append(palabra)
+                    i += 1
+                    continue
+                
+                # Si es la segunda palabra, puede ser nombre o apellido
+                if i == 1:
+                    # Si hay más de 3 palabras totales, la segunda probablemente es nombre
+                    if len(palabras) > 3:
+                        nombres.append(palabra)
+                    else:
+                        # Si solo hay 2-3 palabras, la segunda es apellido
+                        apellidos.append(palabra)
+                    i += 1
+                    continue
+                
+                # Para la tercera palabra en adelante
+                if i == 2 and len(palabras) > 3:
+                    # Si hay más de 3 palabras, la tercera puede ser nombre o apellido
+                    if len(palabras) == 4:
+                        # 4 palabras: "Juan Carlos de la Torre" -> nombres: ["Juan", "Carlos"], apellidos: ["de la", "Torre"]
+                        nombres.append(palabra)
+                    else:
+                        # Más de 4 palabras, empezar a considerar apellidos
+                        apellidos.append(palabra)
+                else:
+                    # Palabras restantes son apellidos
+                    apellidos.append(palabra)
+                
+                i += 1
+            
+            # Procesar apellidos para manejar preposiciones
+            apellidos_procesados = self._procesar_apellidos_compuestos(apellidos)
+            
+            # Construir resultado
+            nombres_str = " ".join(nombres)
+            apellido_paterno = apellidos_procesados[0] if len(apellidos_procesados) > 0 else ""
+            apellido_materno = apellidos_procesados[1] if len(apellidos_procesados) > 1 else ""
+            
+            return {
+                "nombres": nombres_str,
+                "apellido_paterno": apellido_paterno,
+                "apellido_materno": apellido_materno
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error al parsear nombre completo: {e}")
+            return {"nombres": texto, "apellido_paterno": "", "apellido_materno": ""}
+    
+    def _procesar_apellidos_compuestos(self, apellidos: list) -> list:
+        """
+        Procesa apellidos para manejar preposiciones y artículos
+        """
+        if not apellidos:
+            return []
+        
+        # Preposiciones y artículos comunes
+        preposiciones = {"de", "del", "la", "las", "los", "da", "di", "do", "du", "van", "von"}
+        
+        apellidos_procesados = []
+        i = 0
+        
+        while i < len(apellidos):
+            palabra = apellidos[i].lower()
+            
+            # Si es una preposición, combinarla con la siguiente palabra
+            if palabra in preposiciones and i + 1 < len(apellidos):
+                apellido_compuesto = f"{apellidos[i]} {apellidos[i + 1]}"
+                apellidos_procesados.append(apellido_compuesto)
+                i += 2  # Saltar la siguiente palabra
+            else:
+                # Palabra normal
+                apellidos_procesados.append(apellidos[i])
+                i += 1
+        
+        return apellidos_procesados
+    
+    def buscar_candidatos_inteligente(self, texto_entrada: str) -> list:
+        """
+        Busca candidatos de forma inteligente parseando el texto de entrada
+        Maneja múltiples formatos: "Juan García", "Juan Carlos de la Torre García", etc.
+        """
+        try:
+            logger.info(f"👤 Buscando candidatos inteligentemente: {texto_entrada}")
+            
+            # Parsear el texto de entrada
+            parsed = self.parsear_nombre_completo(texto_entrada)
+            
+            nombres = parsed["nombres"]
+            apellido_paterno = parsed["apellido_paterno"]
+            apellido_materno = parsed["apellido_materno"]
+            
+            logger.info(f"📝 Parseado: nombres='{nombres}', paterno='{apellido_paterno}', materno='{apellido_materno}'")
+            
+            # Intentar diferentes estrategias de búsqueda
+            candidatos = []
+            
+            # Estrategia 1: Búsqueda con ambos apellidos
+            if apellido_paterno and apellido_materno:
+                candidatos = self.oracle_repo.buscar_candidatos_por_apellidos_separados(nombres, apellido_paterno, apellido_materno)
+                if candidatos:
+                    logger.info(f"✅ Encontrados {len(candidatos)} candidatos con ambos apellidos")
+                    return candidatos
+            
+            # Estrategia 2: Búsqueda solo con apellido paterno
+            if apellido_paterno:
+                candidatos = self.oracle_repo.buscar_candidatos_por_apellidos_separados(nombres, apellido_paterno, "")
+                if candidatos:
+                    logger.info(f"✅ Encontrados {len(candidatos)} candidatos con apellido paterno")
+                    return candidatos
+            
+            # Estrategia 3: Búsqueda general con nombres y cualquier apellido
+            if apellido_paterno or apellido_materno:
+                apellidos_combinados = f"{apellido_paterno} {apellido_materno}".strip()
+                candidatos = self.oracle_repo.buscar_candidatos_unicos(nombres, apellidos_combinados)
+                if candidatos:
+                    logger.info(f"✅ Encontrados {len(candidatos)} candidatos con búsqueda general")
+                    return candidatos
+            
+            # Estrategia 4: Búsqueda solo por nombres
+            candidatos = self.oracle_repo.buscar_candidatos_unicos(nombres, "")
+            if candidatos:
+                logger.info(f"✅ Encontrados {len(candidatos)} candidatos solo por nombres")
+                return candidatos
+            
+            logger.warning(f"⚠️ No se encontraron candidatos para: {texto_entrada}")
+            return []
+            
+        except Exception as e:
+            logger.error(f"❌ Error en búsqueda inteligente: {e}")
             return []
     
     def buscar_candidatos_por_apellidos_separados(self, nombres: str, apellido_paterno: str, apellido_materno: str) -> list:

@@ -188,3 +188,10 @@ class ServiciosDigitalesManager:
             "servicios_busqueda": len(self.servicios_busqueda),
             "total": len(self.servicios_digitales) + len(self.servicios_busqueda)
         }
+    
+    def obtener_servicios_digitales(self) -> List[dict]:
+        """Obtiene la lista de servicios digitales principales"""
+        servicios_lista = []
+        for opcion, servicio in self.servicios_digitales.items():
+            servicios_lista.append(servicio)
+        return servicios_lista

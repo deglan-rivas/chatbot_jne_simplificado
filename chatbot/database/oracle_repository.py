@@ -92,7 +92,7 @@ class OracleRepository:
             # Generar reporte usando los datos de la base de datos
             reporte = f"""📊 **Registro de Organizaciones Políticas**
         
-        A la fecha {fecha_actual}, el Registro de Organizaciones Políticas presenta el siguiente detalle:"""
+        A la fecha 14/08/2025, el Registro de Organizaciones Políticas presenta el siguiente detalle:"""
             
             for cod_tipo, datos in estadisticas.items():
                 descripcion = datos["descripcion"]

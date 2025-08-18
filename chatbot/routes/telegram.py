@@ -152,7 +152,7 @@ class MenuHandler:
         options = menus[current_menu]["options"]
         
         if text not in options:
-            return f"Opción no válida. Escribe 'salir' para volver al menú principal.\n\n{menus[current_menu]['text']}", False
+            return f"Opción no válida. Escribe 'menu' para volver al menú principal.\n\n{menus[current_menu]['text']}", False
             
         chosen_key = options[text]
         state["flow"].append(chosen_key)
@@ -256,18 +256,7 @@ class StateHandler:
     @staticmethod
     def _handle_exit_command(text: str, state: dict) -> tuple[str, bool]:
         """Maneja comandos de salida y retorna respuesta y si debe salir"""
-        if text.lower().strip() in ["salir", "cancelar", "exit", "quit", "cancel", "volver"]:
-            state["stage"] = "main"
-            mensaje_regreso = """🔄 **¡Perfecto! Volvamos al menú principal**
-
-🤖 **ELECCIA** está aquí para ayudarte. ¿En qué más puedo asistirte?
-
-💡 **Comandos útiles:**
-• Escribe **'menu'** para volver al menú principal en cualquier momento
-• Escribe **'adios'** para cerrar la conversación y finalizar"""
-            
-            return mensaje_regreso + "\n\n" + menus["main"]["text"], True
-        elif text.lower().strip() in ["menu"]:
+        if text.lower().strip() in ["menu"]:
             # Solo regresar al menú principal (sin reiniciar estado)
             state["stage"] = "main"
             mensaje_regreso = """🔄 **¡Perfecto! Volvamos al menú principal**
@@ -279,8 +268,8 @@ class StateHandler:
 • Escribe **'adios'** para cerrar la conversación y finalizar"""
             
             return mensaje_regreso + "\n\n" + menus["main"]["text"], True
-        elif text.lower().strip() in ["adios", "adiós"]:
-            # Finalizar conversación
+        elif text.lower().strip() in ["salir", "cancelar", "exit", "quit", "cancel", "volver", "adios", "adiós"]:
+            # Finalizar conversación (comportamiento como "adios")
             state["stage"] = "main"
             mensaje_despedida = """🤖 **¡Ha sido un placer ayudarte!**
 
@@ -297,9 +286,9 @@ class StateHandler:
     def _get_invalid_option_message(menu_name: str, max_options: int = 0) -> str:
         """Genera mensaje de opción inválida con opción de salida"""
         if max_options > 0:
-            return f"Opción no válida. Por favor, elige un número entre 1 y {max_options} o escribe 'salir' para volver al menú principal."
+            return f"Opción no válida. Por favor, elige un número entre 1 y {max_options} o escribe 'menu' para volver al menú principal."
         else:
-            return f"Por favor, elige una opción válida del menú de {menu_name} o escribe 'salir' para volver al menú principal."
+            return f"Por favor, elige una opción válida del menú de {menu_name} o escribe 'menu' para volver al menú principal."
     
     @staticmethod
     async def handle_state(chat_id: int, text: str, state: dict) -> str:
@@ -330,8 +319,12 @@ class StateHandler:
             return await StateHandler._handle_eleccion_candidato_selection(chat_id, text, state)
         elif stage == "awaiting_another_question":
             return await StateHandler._handle_another_question(chat_id, text, state)
+        elif stage == "servicios_ciudadano":
+            return await StateHandler._handle_servicios_ciudadano_selection(chat_id, text, state)
+        elif stage == "pleno":
+            return await StateHandler._handle_pleno_selection(chat_id, text, state)
         
-        return "Lo siento, no entiendo qué quieres hacer. Por favor, vuelve al menú principal escribiendo 'salir'.", False
+        return "Lo siento, no entiendo qué quieres hacer. Por favor, vuelve al menú principal escribiendo 'menu'.", False
     
     @staticmethod
     async def _handle_question(chat_id: int, text: str, state: dict) -> str:
@@ -384,7 +377,7 @@ class StateHandler:
                 state["final_choice"] = "tramite_seleccion"
                 return respuesta
             else:
-                return f"Opción no válida. Por favor, elige un número entre 1 y {len(servicios_encontrados)} o escribe 'salir' para volver al menú principal."
+                return f"Opción no válida. Por favor, elige un número entre 1 y {len(servicios_encontrados)} o escribe 'menu' para volver al menú principal."
         else:
             # Verificar si es un comando de salida
             exit_response, should_exit = StateHandler._handle_exit_command(text, state)
@@ -414,7 +407,7 @@ class StateHandler:
                 state["final_choice"] = "pleno_seleccion"
                 return respuesta
             else:
-                return f"Opción no válida. Por favor, elige un número entre 1 y {len(pleno_miembros)} o escribe 'salir' para volver al menú principal."
+                return f"Opción no válida. Por favor, elige un número entre 1 y {len(pleno_miembros)} o escribe 'menu' para volver al menú principal."
         else:
             # Verificar si es un comando de salida
             exit_response, should_exit = StateHandler._handle_exit_command(text, state)
@@ -442,7 +435,7 @@ class StateHandler:
                 state["stage"] = "awaiting_hito_consulta"
                 return f"📅 Has seleccionado: **{proceso_seleccionado}**\n\n¿Qué hitos electorales deseas consultar? Por ejemplo: '¿Cuándo son las elecciones generales?', '¿Cuál es la fecha límite para inscripción de candidatos?', '¿En qué fechas se realizarán las votaciones?' o describe lo que buscas."
             else:
-                return f"Opción no válida. Por favor, elige un número entre 1 y {len(procesos_especificos) + 1} o escribe 'salir' para volver al menú principal."
+                return f"Opción no válida. Por favor, elige un número entre 1 y {len(procesos_especificos) + 1} o escribe 'menu' para volver al menú principal."
         else:
             # Verificar si es un comando de salida
             exit_response, should_exit = StateHandler._handle_exit_command(text, state)
@@ -496,7 +489,7 @@ class StateHandler:
                 state["final_choice"] = "hito_electoral"
                 return respuesta
             else:
-                return f"Opción no válida. Por favor, elige un número entre 1 y {len(hitos)} o escribe 'salir' para volver al menú principal."
+                return f"Opción no válida. Por favor, elige un número entre 1 y {len(hitos)} o escribe 'menu' para volver al menú principal."
         else:
             # Verificar si es un comando de salida
             exit_response, should_exit = StateHandler._handle_exit_command(text, state)
@@ -508,16 +501,15 @@ class StateHandler:
     @staticmethod
     async def _handle_politico_nombres(chat_id: int, text: str, state: dict) -> str:
         """Maneja la entrada de nombres del político"""
-        palabras = text.strip().split()
+        texto_entrada = text.strip()
         
-        if len(palabras) < 2:
+        if len(texto_entrada.split()) < 2:
             return "Por favor, proporciona al menos un nombre y un apellido del político que deseas consultar."
         
-        nombres = palabras[0]
-        apellidos = palabras[1] if len(palabras) > 1 else ""
-        
         procesos_manager = get_procesos_electorales_manager()
-        candidatos = procesos_manager.buscar_candidatos_unicos(nombres, apellidos)
+        
+        # Usar búsqueda inteligente que maneja múltiples formatos
+        candidatos = procesos_manager.buscar_candidatos_inteligente(texto_entrada)
         
         if not candidatos:
             # No se encontraron candidatos, volver al menú principal
@@ -525,10 +517,12 @@ class StateHandler:
             return "No se encontraron candidatos que coincidan exactamente con tu búsqueda. \n\n🔗 **Más Información:** https://infogob.jne.gob.pe/Politico\n\n¿Quieres intentar con otra búsqueda?"
         
         if len(candidatos) > 10:
-            state["nombres_politico"] = nombres
-            state["primer_apellido"] = apellidos
+            # Parsear el texto para obtener nombres y primer apellido
+            parsed = procesos_manager.parsear_nombre_completo(texto_entrada)
+            state["nombres_politico"] = parsed["nombres"]
+            state["primer_apellido"] = parsed["apellido_paterno"]
             state["stage"] = "awaiting_politico_segundo_apellido"
-            return f"Se encontraron {len(candidatos)} candidatos. Por favor, proporciona un segundo apellido para refinar la búsqueda."
+            return f"Se encontraron {len(candidatos)} candidatos. Por favor, proporciona el segundo apellido para refinar la búsqueda."
         else:
             state["candidatos_encontrados"] = candidatos
             state["stage"] = "awaiting_candidato_selection"
@@ -539,16 +533,29 @@ class StateHandler:
         """Maneja el segundo apellido del político"""
         nombres = state.get("nombres_politico", "")
         primer_apellido = state.get("primer_apellido", "")
-        segundo_apellido = text.strip()
         
-        # Buscar candidatos usando nombres, primer apellido y segundo apellido por separado
+        texto_entrada = text.strip()
+        palabras_entrada = texto_entrada.split()
+        
         procesos_manager = get_procesos_electorales_manager()
+        
+        # Validar que el usuario ingrese solo un apellido
+        if len(palabras_entrada) > 1:
+            return f"❌ **Por favor, ingresa SOLO el segundo apellido.**\n\n💡 **No ingreses el nombre completo, solo el segundo apellido para refinar la búsqueda.**"
+        
+        if len(palabras_entrada) == 0:
+            return "❌ **Por favor, ingresa el segundo apellido.**"
+        
+        # Usuario ingresó solo un segundo apellido (caso correcto)
+        segundo_apellido = texto_entrada
+        
+        # Buscar candidatos con ambos apellidos
         candidatos = procesos_manager.buscar_candidatos_por_apellidos_separados(nombres, primer_apellido, segundo_apellido)
         
         if not candidatos:
             # No se encontraron candidatos, volver al menú principal
             state["stage"] = "main"
-            return "No se encontraron candidatos que coincidan exactamente con tu búsqueda.\n\n🔗 **Más Información:** https://infogob.jne.gob.pe/Politico\n\n¿Quieres intentar con otra búsqueda?"
+            return f"❌ **No se encontraron candidatos** con el nombre '{nombres}' y apellidos '{primer_apellido} {segundo_apellido}'.\n\n🔗 **Más Información:** https://infogob.jne.gob.pe/Politico\n\n¿Quieres intentar con otra búsqueda?"
         
         state["candidatos_encontrados"] = candidatos
         state["stage"] = "awaiting_candidato_selection"
@@ -585,7 +592,7 @@ class StateHandler:
                     state["stage"] = "main"
                     return f"No se encontraron elecciones para {candidato_seleccionado['nombre_completo']}. Esto puede deberse a que el candidato no participó en elecciones o la información no está disponible en este momento. ¿Quieres consultar otro candidato?"
             else:
-                return f"Opción no válida. Por favor, elige un número entre 1 y {len(candidatos)} o escribe 'salir' para volver al menú principal."
+                return f"Opción no válida. Por favor, elige un número entre 1 y {len(candidatos)} o escribe 'menu' para volver al menú principal."
         else:
             # Verificar si es un comando de salida
             exit_response, should_exit = StateHandler._handle_exit_command(text, state)
@@ -626,7 +633,7 @@ class StateHandler:
                     state["stage"] = "main"
                     return f"No se encontró información detallada para {candidato['nombre_completo']} en {eleccion_seleccionada}. Esto puede deberse a que la información no está completa en la base de datos o el candidato no participó en esa elección específica. ¿Quieres consultar otro candidato o elección?"
             else:
-                return f"Opción no válida. Por favor, elige un número entre 1 y {len(elecciones)} o escribe 'salir' para volver al menú principal."
+                return f"Opción no válida. Por favor, elige un número entre 1 y {len(elecciones)} o escribe 'menu' para volver al menú principal."
         else:
             # Verificar si es un comando de salida
             exit_response, should_exit = StateHandler._handle_exit_command(text, state)
@@ -634,6 +641,31 @@ class StateHandler:
                 return exit_response
             else:
                 return StateHandler._get_invalid_option_message("elecciones")
+    
+    @staticmethod
+    async def _handle_servicios_ciudadano_selection(chat_id: int, text: str, state: dict) -> str:
+        """Maneja la selección de servicios digitales del ciudadano"""
+        servicios_manager = get_servicios_manager()
+        
+        if text.isdigit():
+            opcion = int(text)
+            servicios_disponibles = servicios_manager.obtener_servicios_digitales()
+            
+            if 1 <= opcion <= len(servicios_disponibles):
+                servicio = servicios_disponibles[opcion - 1]
+                respuesta = f"📋 **{servicio['nombre']}**\n\n📝 **Descripción:** {servicio['descripcion']}\n\n🔗 **Enlace:** {servicio['enlace']}\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
+                state["stage"] = "awaiting_another_question"
+                state["final_choice"] = "servicio_digital_seleccion"
+                return respuesta
+            else:
+                return f"Opción no válida. Por favor, elige un número entre 1 y {len(servicios_disponibles)} o escribe 'menu' para volver al menú principal."
+        else:
+            # Verificar si es un comando de salida
+            exit_response, should_exit = StateHandler._handle_exit_command(text, state)
+            if should_exit:
+                return exit_response
+            else:
+                return StateHandler._get_invalid_option_message("servicios digitales")
     
     @staticmethod
     async def _handle_another_question(chat_id: int, text: str, state: dict) -> str:
@@ -778,28 +810,8 @@ async def tilin_chatbot(req: Request):
         "navegacion_menu" if state["stage"] in menus else "consulta_informacion"
     )
     
-    # Verificar si el usuario quiere salir o cancelar
-    if text.lower().strip() in ["adios", "adiós"]:
-        # Finalizar conversación
-        chat_memory = get_chat_memory()
-        chat_memory.finalizar_conversacion(
-            user_id=str(chat_id),
-            motivo="Usuario finalizó conversación con comando adios"
-        )
-        ChatbotStateManager.reset_user(chat_id)
-        
-        mensaje_despedida = """🤖 **¡Ha sido un placer ayudarte!**
-
-👋 **ELECCIA** se despide de ti
-
-💡 Recuerda que siempre puedes volver cuando tengas más consultas sobre el JNE.
-
-¡Que tengas un excelente día! 👋"""
-        
-        await ResponseManager.send_response(chat_id, mensaje_despedida, {"stage": "main", "flow": []}, "despedida")
-        return {"reply": mensaje_despedida}
-    
-    elif text.lower().strip() in ["menu"]:
+    # Verificar comandos especiales
+    if text.lower().strip() in ["menu"]:
         # Solo regresar al menú principal (sin reiniciar estado)
         mensaje_regreso = """🔄 **¡Perfecto! Volvamos al menú principal**
 
@@ -814,23 +826,28 @@ async def tilin_chatbot(req: Request):
         await ResponseManager.send_response(chat_id, respuesta, state, "main")
         return {"reply": respuesta}
     
-    elif text.lower().strip() in ["salir", "cancelar", "exit", "quit", "cancel", "No"]:
-        # Comandos de salida tradicionales (reinician estado)
-        mensaje_regreso = """🔄 **¡Perfecto! Volvamos al menú principal**
-
-🤖 **ELECCIA** está aquí para ayudarte. ¿En qué más puedo asistirte?
-
-💡 **Comandos útiles:**
-• Escribe **'menu'** para volver al menú principal en cualquier momento
-• Escribe **'adios'** para cerrar la conversación y finalizar"""
-        
-        respuesta = mensaje_regreso + "\n\n" + menus["main"]["text"]
+    elif text.lower().strip() in ["salir", "cancelar", "exit", "quit", "cancel", "volver", "adios", "adiós"]:
+        # Finalizar conversación (comportamiento como "adios")
+        chat_memory = get_chat_memory()
+        chat_memory.finalizar_conversacion(
+            user_id=str(chat_id),
+            motivo="Usuario finalizó conversación con comando de salida"
+        )
         ChatbotStateManager.reset_user(chat_id)
-        await ResponseManager.send_response(chat_id, respuesta, {"stage": "main", "flow": []}, "main")
-        return {"reply": respuesta}
-    
-    # Si el usuario está en un menú
-    if state["stage"] in menus:
+        
+        mensaje_despedida = """🤖 **¡Ha sido un placer ayudarte!**
+
+👋 **ELECCIA** se despide de ti
+
+💡 Recuerda que siempre puedes volver cuando tengas más consultas sobre el JNE.
+
+¡Que tengas un excelente día! 👋"""
+        
+        await ResponseManager.send_response(chat_id, mensaje_despedida, {"stage": "main", "flow": []}, "despedida")
+        return {"reply": mensaje_despedida}
+
+    # Si el usuario está en un menú (excluyendo servicios_ciudadano y pleno que se manejan dinámicamente)
+    if state["stage"] in menus and state["stage"] not in ["servicios_ciudadano", "pleno"]:
         respuesta, is_final = MenuHandler.handle_menu_selection(chat_id, text, state)
         
         if is_final:
@@ -840,7 +857,7 @@ async def tilin_chatbot(req: Request):
         
         return {"reply": respuesta}
     
-    # Si el usuario está en un estado específico
+    # Si el usuario está en un estado específico (incluyendo servicios_ciudadano)
     respuesta = await StateHandler.handle_state(chat_id, text, state)
     await ResponseManager.send_response(chat_id, respuesta, state, state.get("final_choice", "consulta_general"))
     

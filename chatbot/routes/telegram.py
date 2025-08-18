@@ -77,7 +77,11 @@ menus = {
         "text": "Servicios Digitales:\n1. Los servicios mas usados por la ciudadanía\n2. Consulta por un trámite específico",
         "options": {"1": "servicios_ciudadano", "2": "tramite"}
     },
-    "servicios_ciudadano": {"text": "", "options": {}}
+    "servicios_ciudadano": {"text": "", "options": {}},
+    "pleno": {
+        "text": "",
+        "options": {}
+    },
 }
 
 class ChatbotStateManager:

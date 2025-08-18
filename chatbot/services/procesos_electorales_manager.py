@@ -273,6 +273,13 @@ class ProcesosElectoralesManager:
         if not hitos:
             return "No se encontraron hitos electorales que coincidan con tu consulta."
         
+        # Diccionario de meses en español
+        MESES = {
+            "ENERO": 1, "FEBRERO": 2, "MARZO": 3, "ABRIL": 4,
+            "MAYO": 5, "JUNIO": 6, "JULIO": 7, "AGOSTO": 8,
+            "SEPTIEMBRE": 9, "OCTUBRE": 10, "NOVIEMBRE": 11, "DICIEMBRE": 12
+        }
+
         menu = f"📋 **Hitos Encontrados** ({len(hitos)})\n\n"
         menu += "Selecciona uno:\n\n"
         
@@ -291,8 +298,18 @@ class ProcesosElectoralesManager:
                 
                 # Determinar contexto temporal
                 try:
-                    fecha_hito = datetime(hito['anio'], int(hito['mes']) if hito['mes'].isdigit() else 1, hito['dia'])
-                    fecha_actual = datetime.now()
+                    mes = None
+                    if str(hito['mes']).isdigit():
+                        mes = int(hito['mes'])
+                    else:
+                        mes = MESES.get(str(hito['mes']).upper(), 1)  # Default enero si no reconoce
+                    
+                    fecha_hito = datetime(
+                        int(hito['anio']),
+                        mes,
+                        int(hito['dia'])
+                    ).date()
+                    fecha_actual = datetime.now().date()
                     
                     if fecha_hito < fecha_actual:
                         contexto_temporal = " ✅"

@@ -197,7 +197,7 @@ class MenuHandler:
     def _handle_tramite(chat_id: int, state: dict) -> tuple[str, bool]:
         """Maneja la consulta de trámite"""
         state["stage"] = "awaiting_tramite_query"
-        return "Por favor, describe qué tipo de trámite o servicio estás buscando. Por ejemplo: 'Necesito información sobre multas electorales', 'Quiero saber cómo afiliarme a un partido político', 'Busco información sobre certificados electorales', '¿Cómo puedo consultar mi padrón electoral?' o describe tu consulta con más detalle."
+        return "Por favor, describe qué tipo de trámite o servicio estás buscando. Por ejemplo: 'Necesito información sobre multas electorales', 'Quiero saber cómo afiliarme a un partido político', 'Busco información sobre certificados electorales', '¿Cómo puedo consultar mi padrón electoral?' o describe tu consulta con más detalle.", False
     
     @staticmethod
     def _handle_info_directa(choice: str, state: dict) -> tuple[str, bool]:

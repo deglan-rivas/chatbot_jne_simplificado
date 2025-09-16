@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from chatbot.routes import telegram, api_gateway
+from chatbot.routes import telegram, api_gateway, whatsapp
 from chatbot.database.connection import inicializar_conexiones
 
 app = FastAPI(title="Chatbot JNE Simplificado")
@@ -25,6 +25,7 @@ async def startup_event():
 
 # Routers
 app.include_router(telegram.router, prefix="/webhook/telegram", tags=["Telegram"])
+app.include_router(whatsapp.router, prefix="/webhook/whatsapp", tags=["WhatsApp"])
 app.include_router(api_gateway.router, prefix="/api", tags=["API Gateway"])
 
 @app.get("/health")

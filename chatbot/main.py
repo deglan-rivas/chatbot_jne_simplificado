@@ -1,6 +1,23 @@
+import logging
+import os
+
 from fastapi import FastAPI, Request
 from chatbot.routes import telegram, api_gateway, whatsapp
 from chatbot.database.connection import inicializar_conexiones
+
+
+def _configure_logging() -> None:
+    """Configura logging global basado en la variable LOG_LEVEL."""
+    level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    logging.basicConfig(level=level, force=True)
+
+    # Alinear logs de uvicorn (si se ejecuta con uvicorn/fastapi)
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        logging.getLogger(logger_name).setLevel(level)
+
+
+_configure_logging()
 
 app = FastAPI(title="Chatbot JNE Simplificado")
 

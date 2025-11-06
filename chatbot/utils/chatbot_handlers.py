@@ -3,6 +3,9 @@ from .chatbot_core import (
     get_chat_memory, get_servicios_manager, get_info_institucional_manager,
     get_procesos_electorales_manager, menus, context_map, send_to_llm
 )
+from chatbot.services.intent_router import MenuIntentRouter, is_greeting
+
+MENU_ROUTER = MenuIntentRouter()
 
 class ResponseManager:
     """Maneja las respuestas del bot y el logging"""
@@ -48,14 +51,23 @@ class MenuHandler:
         current_menu = state["stage"]
         
         if current_menu not in menus:
-            return "Menú no válido", False
+            return "Menu no valido", False
             
         options = menus[current_menu]["options"]
         
-        if text not in options:
-            return f"Opción no válida. Escribe 'menu' para volver al menú principal.\n\n{menus[current_menu]['text']}", False
-            
-        chosen_key = options[text]
+        if is_greeting(text):
+            return f"Hola! En que puedo ayudarte?\n\n{menus[current_menu]['text']}", False
+
+        chosen_key = options.get(text)
+
+        if chosen_key is None:
+            route_result = MENU_ROUTER.route_within_menu(text, current_menu, menus)
+            if route_result.option_key is None:
+                return (
+                    f"Opcion no valida. Escribe 'menu' para volver al menu principal.\n\n{menus[current_menu]['text']}",
+                    False,
+                )
+            chosen_key = route_result.option_key
         state["flow"].append(chosen_key)
         
         # Casos especiales que requieren manejo específico

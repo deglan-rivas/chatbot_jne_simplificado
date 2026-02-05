@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test WebSocket - Chatbot JNE</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .status-bar {
+            background: #f5f5f5;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ccc;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #4caf50;
+        }
+
+        .status-dot.disconnected {
+            background: #f44336;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .config-section {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            background: #fafafa;
+        }
+
+        .config-section label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .config-section input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .config-section button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .config-section button:hover {
+            background: #5568d3;
+        }
+
+        .config-section button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .messages-container {
+            height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9f9f9;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+
+        .message.user {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.bot {
+            background: white;
+            border: 1px solid #ddd;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .message.system {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            text-align: center;
+            font-size: 12px;
+            color: #856404;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .message-timestamp {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+
+        .rich-content {
+            margin-top: 10px;
+        }
+
+        .rich-content .title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .rich-content .text {
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .menu-button {
+            padding: 10px 15px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: left;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .menu-button:hover {
+            background: #5568d3;
+        }
+
+        .menu-button.secondary {
+            background: #6c757d;
+        }
+
+        .menu-button.secondary:hover {
+            background: #5a6268;
+        }
+
+        .list-items {
+            list-style: none;
+            margin-top: 10px;
+        }
+
+        .list-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .list-item:hover {
+            background: #e9ecef;
+        }
+
+        .list-item strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .list-item p {
+            font-size: 12px;
+            color: #666;
+            margin: 0;
+        }
+
+        .input-section {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-section input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .input-section button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .input-section button:hover {
+            background: #5568d3;
+        }
+
+        .input-section button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .log-section {
+            padding: 20px;
+            background: #f5f5f5;
+            border-top: 1px solid #ddd;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .log-section h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            padding: 5px;
+            margin-bottom: 5px;
+            background: white;
+            border-radius: 4px;
+        }
+
+        .log-entry.error {
+            color: #f44336;
+        }
+
+        .log-entry.success {
+            color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Test WebSocket - Chatbot JNE</h1>
+            <p>Prueba de conexión y funcionalidad del WebSocket</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Desconectado</span>
+            </div>
+            <div>
+                <span id="userIdDisplay">User ID: -</span>
+            </div>
+        </div>
+
+        <div class="config-section">
+            <label for="wsUrl">URL del WebSocket:</label>
+            <input type="text" id="wsUrl" value="ws://localhost:8001/api/web/chat/ws" placeholder="ws://localhost:8001/api/web/chat/ws">
+            
+            <label for="userId" style="margin-top: 15px;">User ID (opcional, se genera automáticamente si está vacío):</label>
+            <input type="text" id="userId" placeholder="Dejar vacío para generar automáticamente">
+            
+            <button id="connectBtn" onclick="connect()">Conectar</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Desconectar</button>
+        </div>
+
+        <div class="messages-container" id="messagesContainer">
+            <div class="message system">
+                Esperando conexión...
+            </div>
+        </div>
+
+        <div class="input-section">
+            <input type="text" id="messageInput" placeholder="Escribe tu mensaje..." disabled>
+            <button id="sendBtn" onclick="sendMessage()" disabled>Enviar</button>
+        </div>
+
+        <div class="log-section">
+            <h3>📋 Log de Eventos</h3>
+            <div id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let userId = null;
+
+        function generateUserId() {
+            return `test_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const messageInput = document.getElementById('messageInput');
+            const sendBtn = document.getElementById('sendBtn');
+
+            if (connected) {
+                statusDot.className = 'status-dot connected';
+                statusText.textContent = 'Conectado';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                messageInput.disabled = false;
+                sendBtn.disabled = false;
+            } else {
+                statusDot.className = 'status-dot disconnected';
+                statusText.textContent = 'Desconectado';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                messageInput.disabled = true;
+                sendBtn.disabled = true;
+            }
+        }
+
+        function addMessage(content, type = 'bot', timestamp = null) {
+            const container = document.getElementById('messagesContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            if (type === 'bot' && content.response_rich) {
+                // Renderizar response_rich
+                const rich = content.response_rich;
+                
+                if (rich.content && rich.content.text) {
+                    const textDiv = document.createElement('div');
+                    textDiv.textContent = rich.content.text;
+                    messageDiv.appendChild(textDiv);
+                }
+                
+                if (rich.content && rich.content.title) {
+                    const titleDiv = document.createElement('div');
+                    titleDiv.className = 'title';
+                    titleDiv.textContent = rich.content.title;
+                    messageDiv.appendChild(titleDiv);
+                }
+                
+                if (rich.actions && rich.actions.length > 0) {
+                    const buttonsContainer = document.createElement('div');
+                    buttonsContainer.className = 'menu-buttons';
+                    
+                    rich.actions.forEach(action => {
+                        const button = document.createElement('button');
+                        button.className = `menu-button ${action.style || 'primary'}`;
+                        button.textContent = action.label;
+                        button.onclick = () => {
+                            sendMessage(action.value);
+                        };
+                        buttonsContainer.appendChild(button);
+                    });
+                    
+                    messageDiv.appendChild(buttonsContainer);
+                }
+                
+                if (rich.items && rich.items.length > 0) {
+                    const listContainer = document.createElement('ul');
+                    listContainer.className = 'list-items';
+                    
+                    rich.items.forEach(item => {
+                        const listItem = document.createElement('li');
+                        listItem.className = 'list-item';
+                        listItem.onclick = () => {
+                            sendMessage(item.value);
+                        };
+                        
+                        const title = document.createElement('strong');
+                        title.textContent = item.title;
+                        listItem.appendChild(title);
+                        
+                        if (item.description) {
+                            const desc = document.createElement('p');
+                            desc.textContent = item.description;
+                            listItem.appendChild(desc);
+                        }
+                        
+                        listContainer.appendChild(listItem);
+                    });
+                    
+                    messageDiv.appendChild(listContainer);
+                }
+            } else {
+                // Mensaje de texto simple
+                messageDiv.textContent = typeof content === 'string' ? content : (content.content || content);
+            }
+            
+            if (timestamp) {
+                const timestampDiv = document.createElement('div');
+                timestampDiv.className = 'message-timestamp';
+                timestampDiv.textContent = new Date(timestamp).toLocaleString();
+                messageDiv.appendChild(timestampDiv);
+            }
+            
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function connect() {
+            const wsUrl = document.getElementById('wsUrl').value;
+            const userIdInput = document.getElementById('userId').value;
+            
+            userId = userIdInput || generateUserId();
+            document.getElementById('userIdDisplay').textContent = `User ID: ${userId}`;
+            
+            const fullUrl = `${wsUrl}?user_id=${userId}`;
+            
+            log(`Conectando a ${fullUrl}...`, 'info');
+            
+            try {
+                ws = new WebSocket(fullUrl);
+                
+                ws.onopen = () => {
+                    log('✅ Conexión establecida', 'success');
+                    updateStatus(true);
+                    addMessage('Conectado al servidor. Puedes empezar a chatear.', 'system');
+                };
+                
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        log(`📨 Mensaje recibido: ${data.type}`, 'info');
+                        
+                        switch(data.type) {
+                            case 'message':
+                                addMessage(data, 'bot', data.timestamp);
+                                if (data.response_rich) {
+                                    log(`✨ Respuesta enriquecida detectada: ${data.response_rich.type}`, 'success');
+                                }
+                                break;
+                                
+                            case 'system':
+                                addMessage(data.content, 'system', data.timestamp);
+                                break;
+                                
+                            case 'error':
+                                addMessage(data.content, 'error', data.timestamp);
+                                log(`❌ Error: ${data.content}`, 'error');
+                                break;
+                                
+                            case 'pong':
+                                log('🏓 Pong recibido', 'info');
+                                break;
+                                
+                            default:
+                                log(`⚠️ Tipo de mensaje desconocido: ${data.type}`, 'error');
+                        }
+                    } catch (e) {
+                        log(`❌ Error parseando mensaje: ${e.message}`, 'error');
+                        addMessage(`Error: ${e.message}`, 'error');
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    log('❌ Error en WebSocket', 'error');
+                    addMessage('Error de conexión. Verifica la URL y que el servidor esté corriendo.', 'error');
+                };
+                
+                ws.onclose = (event) => {
+                    log(`🔌 Conexión cerrada (código: ${event.code}, razón: ${event.reason || 'N/A'})`, 'info');
+                    updateStatus(false);
+                    addMessage('Conexión cerrada.', 'system');
+                    ws = null;
+                };
+                
+            } catch (error) {
+                log(`❌ Error al crear WebSocket: ${error.message}`, 'error');
+                addMessage(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                log('🔌 Desconectando...', 'info');
+            }
+        }
+
+        function sendMessage(message = null) {
+            const messageInput = document.getElementById('messageInput');
+            const text = message || messageInput.value.trim();
+            
+            if (!text) {
+                return;
+            }
+            
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('❌ WebSocket no está conectado', 'error');
+                return;
+            }
+            
+            // Mostrar mensaje del usuario
+            addMessage(text, 'user');
+            messageInput.value = '';
+            
+            // Enviar al servidor
+            try {
+                const payload = {
+                    type: "message",
+                    message: text
+                };
+                
+                ws.send(JSON.stringify(payload));
+                log(`📤 Mensaje enviado: "${text}"`, 'info');
+            } catch (error) {
+                log(`❌ Error enviando mensaje: ${error.message}`, 'error');
+                addMessage(`Error al enviar: ${error.message}`, 'error');
+            }
+        }
+
+        // Permitir enviar con Enter
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Permitir conectar con Enter en los campos de configuración
+        document.getElementById('wsUrl').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !ws) {
+                connect();
+            }
+        });
+
+        document.getElementById('userId').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !ws) {
+                connect();
+            }
+        });
+
+        // Log inicial
+        log('🚀 Aplicación iniciada. Configura la URL y haz clic en "Conectar"', 'info');
+    </script>
+</body>
+</html>

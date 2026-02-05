@@ -99,3 +99,40 @@ async def enviar_mensaje_whatsapp(datos: dict):
                 print(f"Error enviando mensaje WhatsApp: {response.status_code} - {response.text}")
     except Exception as e:
         print(f"Error enviando mensaje WhatsApp: {e}")
+
+def normalizar_input_web(body: dict) -> dict:
+    """
+    Normaliza el input de la interfaz web
+    
+    Esperado:
+    {
+        "user_id": "string" o "session_id": "string",
+        "message": "string",
+        "metadata": dict (opcional)
+    }
+    
+    Returns:
+        {
+            "chat_id": str,
+            "text": str,
+            "metadata": dict
+        }
+    """
+    # Obtener user_id de diferentes campos posibles
+    user_id = body.get("user_id") or body.get("session_id") or body.get("chat_id", "unknown")
+    message = body.get("message", "").strip()
+    
+    # Extraer metadata si existe
+    metadata = body.get("metadata", {})
+    if not metadata:
+        metadata = {
+            "session_id": body.get("session_id"),
+            "user_agent": body.get("user_agent"),
+            "ip_address": body.get("ip_address")
+        }
+    
+    return {
+        "chat_id": str(user_id),
+        "text": message,
+        "metadata": metadata
+    }

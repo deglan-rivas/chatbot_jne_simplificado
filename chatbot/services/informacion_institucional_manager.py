@@ -63,7 +63,7 @@ class InformacionInstitucionalManager:
 Para consultar información detallada sobre los funcionarios del JNE, visita:
 
 🔗 **Portal de Funcionarios:**
-https://portal.jne.gob.pe/portal/Pagina/Ver/426/page/Funcionarios
+<a href="https://portal.jne.gob.pe/portal/Pagina/Ver/426/page/Funcionarios">https://portal.jne.gob.pe/portal/Pagina/Ver/426/page/Funcionarios</a>
 
 En este portal encontrarás:
 • Directorio de funcionarios
@@ -78,7 +78,7 @@ En este portal encontrarás:
 Para consultar información sobre los JEE y su ubicación, visita:
 
 🔗 **Plataforma Electoral - JEE:**
-https://plataformaelectoral.jne.gob.pe/conformaciones/jurado-electoral/buscar
+<a href="https://plataformaelectoral.jne.gob.pe/conformaciones/jurado-electoral/buscar">https://plataformaelectoral.jne.gob.pe/conformaciones/jurado-electoral/buscar</a>
 
 En esta plataforma podrás:
 • Buscar JEE por ubicación
@@ -105,7 +105,7 @@ En esta plataforma podrás:
 🕐 Horario de atención: De lunes a viernes de 8:00 a 16:00 horas
 
 **Oficinas Desconcentradas**
-🔗 Más información: https://portal.jne.gob.pe/portal/Pagina/Ver/902/page/Oficinas-Desconcentradas
+🔗 Más información: <a href="https://portal.jne.gob.pe/portal/Pagina/Ver/902/page/Oficinas-Desconcentradas">https://portal.jne.gob.pe/portal/Pagina/Ver/902/page/Oficinas-Desconcentradas</a>
 
 **Información de Contacto General**
 📧 consultas@jne.gob.pe

@@ -8,11 +8,37 @@ services:
     container_name: chatbot_app
     ports:
       - "8001:8001"
-    env_file:
-      - .env
+    # NO cargar .env dentro del contenedor para evitar conflictos
+    # Las variables se pasan explícitamente en environment:
+    # env_file:
+    #   - .env
+    environment:
+      # Hosts para usar nombres de servicio Docker (obligatorio en Docker)
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      # Usar valores del .env del host o defaults
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-ELECCIA_CHATBOT}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # Otras variables que pueden venir del .env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      API_KEY: ${API_KEY:-}
+      ORACLE_USER: ${ORACLE_USER:-eleccia}
+      ORACLE_PASS: ${ORACLE_PASS:-desarrollo}
+      ORACLE_DSN: ${ORACLE_DSN:-oda-x8-2ha-vm1:1521/OPEXTDESA}
+      TNS_ADMIN: ${TNS_ADMIN:-/app}
+      ORACLEDB_CLIENT_PATH: ${ORACLEDB_CLIENT_PATH:-/opt/oracle/instantclient_23_8}
+    extra_hosts:
+      - "oda-x8-2ha-vm1:192.168.128.42"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -25,36 +51,59 @@ services:
     image: postgres:15-alpine
     container_name: postgres_db
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-ELECCIA_CHATBOT}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-123456}
+      # Asegurar que la base de datos se cree automáticamente
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=es_ES.UTF-8"
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ELECCIA_CHATBOT}"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:8-alpine
     container_name: redis_cache
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    command: >
+      sh -c "
+        if [ -n \"$${REDIS_PASSWORD}\" ]; then
+          redis-server --requirepass $${REDIS_PASSWORD} --appendonly yes
+        else
+          redis-server --appendonly yes
+        fi
+      "
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 10s
+      test: >
+        sh -c "
+          if [ -n \"$${REDIS_PASSWORD}\" ]; then
+            redis-cli --no-auth-warning -a $${REDIS_PASSWORD} ping
+          else
+            redis-cli ping
+          fi
+        "
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 5s
+    # Agregar alias de red para compatibilidad
+    networks:
+      default:
+        aliases:
+          - redis
 
 volumes:
   postgres_data:

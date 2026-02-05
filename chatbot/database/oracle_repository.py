@@ -101,7 +101,7 @@ class OracleRepository:
                 
                 reporte += f"\n\n• **{descripcion}**: Inscritos {inscritos} y en proceso de inscripción {en_proceso}"
             
-            reporte += "\n\n🔗 **Más Información**: https://sroppublico.jne.gob.pe/Consulta/OrganizacionPolitica"
+            reporte += "\n\n🔗 **Más Información**: <a href=\"https://sroppublico.jne.gob.pe/Consulta/OrganizacionPolitica\">https://sroppublico.jne.gob.pe/Consulta/OrganizacionPolitica</a>"
             
             return reporte
             
@@ -118,7 +118,7 @@ class OracleRepository:
         Para consultar tu afiliación a organizaciones políticas, visita:
         
         🔗 **Portal de Consulta de Afiliación:**
-        https://sroppublico.jne.gob.pe/Consulta/Afiliado
+        <a href="https://sroppublico.jne.gob.pe/Consulta/Afiliado">https://sroppublico.jne.gob.pe/Consulta/Afiliado</a>
         
         En este portal podrás:
         • Verificar tu afiliación actual

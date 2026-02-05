@@ -1,4 +1,5 @@
 import os
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
@@ -6,10 +7,16 @@ import redis
 from typing import Optional
 from chatbot.config import settings
 
+logger = logging.getLogger(__name__)
+
 # Configuración de PostgreSQL
 def crear_engine_postgresql():
     """Crea el engine de SQLAlchemy para PostgreSQL"""
     try:
+        # Log de la URL de conexión (sin password)
+        db_url_safe = settings.DB_URL.replace(settings.DB_PASSWORD, "***")
+        logger.info(f"🔌 Creando engine PostgreSQL: {db_url_safe}")
+        
         # Configuración del pool de conexiones
         engine = create_engine(
             settings.DB_URL,
@@ -22,13 +29,15 @@ def crear_engine_postgresql():
         )
         return engine
     except Exception as e:
-        print(f"Error al crear engine de PostgreSQL: {e}")
+        logger.error(f"Error al crear engine de PostgreSQL: {e}")
         return None
 
 # Configuración de Redis
 def crear_cliente_redis():
     """Crea el cliente de Redis para chat memory"""
     try:
+        logger.info(f"🔌 Intentando conectar a Redis: {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+        
         # Usar directamente las variables de configuración
         cliente_redis = redis.Redis(
             host=settings.REDIS_HOST,
@@ -43,11 +52,11 @@ def crear_cliente_redis():
         
         # Verificar conexión
         cliente_redis.ping()
-        print(f"Conexión a Redis establecida correctamente en {settings.REDIS_HOST}:{settings.REDIS_PORT}")
+        logger.info(f"✅ Conexión a Redis establecida correctamente en {settings.REDIS_HOST}:{settings.REDIS_PORT}")
         return cliente_redis
             
     except Exception as e:
-        print(f"Error al conectar con Redis: {e}")
+        logger.error(f"❌ Error al conectar con Redis: {e}")
         return None
 
 # Variables globales para las conexiones
@@ -59,11 +68,15 @@ def inicializar_conexiones():
     """Inicializa todas las conexiones de base de datos"""
     global engine_postgresql, cliente_redis, SessionLocal
     
+    logger.info(f"🔌 Inicializando conexiones - DB_HOST: {settings.DB_HOST}, REDIS_HOST: {settings.REDIS_HOST}")
+    
     # Inicializar PostgreSQL
     engine_postgresql = crear_engine_postgresql()
     if engine_postgresql:
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine_postgresql)
-        print(f"Conexión a PostgreSQL establecida correctamente en {settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}")
+        logger.info(f"✅ Conexión a PostgreSQL establecida correctamente en {settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}")
+    else:
+        logger.error(f"❌ No se pudo crear engine de PostgreSQL")
     
     # Inicializar Redis
     cliente_redis = crear_cliente_redis()

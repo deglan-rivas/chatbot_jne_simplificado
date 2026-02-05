@@ -452,7 +452,7 @@ class ProcesosElectoralesManager:
             respuesta += f"🎯 **Cargo Postulado:** {politico['cargo_postulado']}\n\n"
             respuesta += f"🏆 **Cargo Electo:** {politico['cargo_electo']}\n\n"
             respuesta += "📌 Esta información es consultada desde el registro oficial del Jurado Nacional de Elecciones.\n\n"
-            respuesta += "🔗 **Más Información:** https://infogob.jne.gob.pe/Politico\n\n"
+            respuesta += "🔗 **Más Información:** <a href=\"https://infogob.jne.gob.pe/Politico\">https://infogob.jne.gob.pe/Politico</a>\n\n"
             respuesta += "¿Tienes otra consulta? (responde 'si' o 'no'):"
             
             return respuesta
@@ -515,7 +515,7 @@ class ProcesosElectoralesManager:
             respuesta += "incluyendo cronogramas, fechas importantes y detalles específicos, "
             respuesta += "visita el portal oficial del JNE:\n\n"
             respuesta += "🔗 **Portal de Procesos Electorales:**\n"
-            respuesta += "https://portal.jne.gob.pe/portal/Pagina/Ver/991/page/Procesos-Electorales\n\n"
+            respuesta += "<a href=\"https://portal.jne.gob.pe/portal/Pagina/Ver/991/page/Procesos-Electorales\">https://portal.jne.gob.pe/portal/Pagina/Ver/991/page/Procesos-Electorales</a>\n\n"
             respuesta += "En este portal encontrarás:\n"
             respuesta += "• Cronogramas detallados de todos los procesos\n"
             respuesta += "• Fechas importantes y hitos electorales\n"

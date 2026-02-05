@@ -5,36 +5,54 @@ services:
     image: postgres:15-alpine
     container_name: postgres_db
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-ELECCIA_CHATBOT}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-123456}
+      # Asegurar que la base de datos se cree automáticamente
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=es_ES.UTF-8"
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ELECCIA_CHATBOT}"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:8-alpine
     container_name: redis_cache
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    command: >
+      sh -c "
+        if [ -n \"$${REDIS_PASSWORD}\" ]; then
+          redis-server --requirepass $${REDIS_PASSWORD} --appendonly yes
+        else
+          redis-server --appendonly yes
+        fi
+      "
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 10s
+      test: >
+        sh -c "
+          if [ -n \"$${REDIS_PASSWORD}\" ]; then
+            redis-cli --no-auth-warning -a $${REDIS_PASSWORD} ping
+          else
+            redis-cli ping
+          fi
+        "
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 5s
 
 volumes:
   postgres_data:

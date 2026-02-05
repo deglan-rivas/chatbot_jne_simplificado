@@ -372,7 +372,7 @@ class StateHandler:
             
             if 1 <= opcion <= len(servicios_encontrados):
                 servicio = servicios_encontrados[opcion - 1]
-                respuesta = f"📋 **{servicio['nombre']}**\n\n📝 **Descripción:** {servicio['descripcion']}\n\n🔗 **Enlace:** {servicio['enlace']}\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
+                respuesta = f"📋 **{servicio['nombre']}**\n\n📝 **Descripción:** {servicio['descripcion']}\n\n🔗 **Enlace:** <a href=\"{servicio['enlace']}\">{servicio['enlace']}</a>\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
                 state["stage"] = "awaiting_another_question"
                 state["final_choice"] = "tramite_seleccion"
                 return respuesta
@@ -514,7 +514,7 @@ class StateHandler:
         if not candidatos:
             # No se encontraron candidatos, volver al menú principal
             state["stage"] = "main"
-            return "No se encontraron candidatos que coincidan exactamente con tu búsqueda. \n\n🔗 **Más Información:** https://infogob.jne.gob.pe/Politico\n\n¿Quieres intentar con otra búsqueda?"
+            return "No se encontraron candidatos que coincidan exactamente con tu búsqueda. \n\n🔗 **Más Información:** <a href=\"https://infogob.jne.gob.pe/Politico\">https://infogob.jne.gob.pe/Politico</a>\n\n¿Quieres intentar con otra búsqueda?"
         
         if len(candidatos) > 10:
             # Parsear el texto para obtener nombres y primer apellido
@@ -555,7 +555,7 @@ class StateHandler:
         if not candidatos:
             # No se encontraron candidatos, volver al menú principal
             state["stage"] = "main"
-            return f"❌ **No se encontraron candidatos** con el nombre '{nombres}' y apellidos '{primer_apellido} {segundo_apellido}'.\n\n🔗 **Más Información:** https://infogob.jne.gob.pe/Politico\n\n¿Quieres intentar con otra búsqueda?"
+            return f"❌ **No se encontraron candidatos** con el nombre '{nombres}' y apellidos '{primer_apellido} {segundo_apellido}'.\n\n🔗 **Más Información:** <a href=\"https://infogob.jne.gob.pe/Politico\">https://infogob.jne.gob.pe/Politico</a>\n\n¿Quieres intentar con otra búsqueda?"
         
         state["candidatos_encontrados"] = candidatos
         state["stage"] = "awaiting_candidato_selection"
@@ -653,7 +653,7 @@ class StateHandler:
             
             if 1 <= opcion <= len(servicios_disponibles):
                 servicio = servicios_disponibles[opcion - 1]
-                respuesta = f"📋 **{servicio['nombre']}**\n\n📝 **Descripción:** {servicio['descripcion']}\n\n🔗 **Enlace:** {servicio['enlace']}\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
+                respuesta = f"📋 **{servicio['nombre']}**\n\n📝 **Descripción:** {servicio['descripcion']}\n\n🔗 **Enlace:** <a href=\"{servicio['enlace']}\">{servicio['enlace']}</a>\n\n¿Tienes otra consulta? (responde 'si' o 'no'):"
                 state["stage"] = "awaiting_another_question"
                 state["final_choice"] = "servicio_digital_seleccion"
                 return respuesta
